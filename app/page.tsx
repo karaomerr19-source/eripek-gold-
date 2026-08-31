@@ -43,6 +43,45 @@ const STUDIO_MATERIALS = [
 ] as const
 
 
+const SERVICE_PRODUCTS = [
+  'Porselen Lavabo',
+  'Porselen Niş',
+  'Mutfak Tezgahı',
+  'Ada Tezgahı',
+  'Kahve Köşesi',
+  'TV Ünitesi',
+  'Yatak Başlığı / Baza Paneli',
+  'Porselen Masa',
+  'Basamak',
+  'Duvar Kaplama',
+  'Diğer Porselen Uygulama',
+] as const
+
+const SERVICE_ISSUES = [
+  'Su sızıntısı',
+  'Çökme / ayrılma',
+  'Yüzey aşınması',
+  'Montaj kontrolü',
+  'Silikon / derz yenileme',
+  'Çatlak / kırık',
+  'Bakım desteği',
+  'Tesisat / bağlantı kontrolü',
+  'Diğer',
+] as const
+
+function formatDateTR(value?: string | null) {
+  if (!value) return 'Kayıt bekleniyor'
+  return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${value}T12:00:00`))
+}
+
+function warrantyEndDate(value?: string | null, months = 12) {
+  if (!value) return null
+  const d = new Date(`${value}T12:00:00`)
+  d.setMonth(d.getMonth() + months)
+  return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)
+}
+
+
 async function gateway(body: Record<string, unknown>) {
   const res = await fetch(GATEWAY, {
     method: 'POST',
@@ -196,13 +235,22 @@ function Dashboard({ customer, residence, sessionToken, onReset }: { customer: C
 }
 
 function HomeTab({ residence, onService, onDiscover }: { residence: Residence; onService: () => void; onDiscover: () => void }) {
-  const warrantyText = residence.delivery_date ? 'Teslim tarihine göre takip ediliyor' : 'Kurulum / teslim kaydı eklendiğinde görünür'
+  const months = residence.default_warranty_months || 12
+  const warrantyEnd = warrantyEndDate(residence.delivery_date, months)
   return <>
     <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
     <div className="grid2">
-      <div className="card warrantyCard"><div className="iconMark">✓</div><strong>Garanti Kaydı</strong><div className="small muted">{warrantyText}</div></div>
+      <div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date && <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div>}</div>
       <button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button>
     </div>
+    <div className="card warrantyInfo">
+      <div className="eyebrow gold">GARANTİ KAPSAMI</div>
+      <div className="coveragePills"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div>
+      <div className="small muted">Normal kullanım koşullarında uygulamadan kaynaklanan sızdırma, çökme / ayrılma ve olağandışı aşınmalar garanti kapsamında değerlendirilir.</div>
+      <div className="warrantyDivider"></div>
+      <div className="small"><strong>Garanti dışı:</strong> Darbe kaynaklı kırılmalar; tesisat, tadilat veya üçüncü kişilerce yapılan işlemlerden doğan hasarlar; sonradan delme / kesme / müdahale ve uygunsuz kimyasal ya da aşındırıcı ürün kullanımı.</div>
+    </div>
+    <div className="card careCard"><div className="careIcon">◌</div><div><strong>Kolay bakım</strong><div className="small muted spaceTop">Porselen yüzeylerin günlük temizliğinde yumuşak, nemli bir bez yeterlidir. Güçlü kimyasallar ve aşındırıcı temizlik ürünleri kullanmanıza gerek yoktur.</div></div></div>
     <div><div className="sectionTitle">Eviniz için fikirler</div><div className="grid2 roomGrid"><Room title="Mutfak" sub="Ada • Tezgah • Kahve Köşesi" onClick={onDiscover} /><Room title="Yatak Odası" sub="Başlık • Panel • LED" onClick={onDiscover} /></div></div>
   </>
 }
@@ -266,21 +314,26 @@ function ServiceTab({ residence, sessionToken }: { residence: Residence; session
   }
 
   return <form className="stack" onSubmit={submit}>
-    <div><div className="eyebrow gold">SERVİS MERKEZİ</div><h2 className="welcome">Nasıl yardımcı olabiliriz?</h2></div>
+    <div><div className="eyebrow gold">SERVİS MERKEZİ</div><h2 className="welcome">Nasıl yardımcı olabiliriz?</h2><div className="small muted">Talebinizi seçin; kayıt teknik değerlendirmeye alınsın.</div></div>
     <div className="selectedResidence"><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div>
-    <div><label className="label">Ürün</label><select className="input" value={product} onChange={e => setProduct(e.target.value)}><option value="">Seçin</option><option>Porselen Lavabo</option><option>Porselen Niş</option><option>Diğer Porselen Uygulama</option></select></div>
-    <div><label className="label">Talep türü</label><select className="input" value={issue} onChange={e => setIssue(e.target.value)}><option value="">Seçin</option><option>Montaj kontrolü</option><option>Silikon / derz</option><option>Çatlak / kırık</option><option>Leke / bakım</option><option>Diğer</option></select></div>
-    <div><label className="label">Açıklama</label><textarea className="input textarea" rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Sorunu kısaca anlatın" /></div>
+    <div className="serviceGuide">
+      <div><strong>Garanti kapsamında</strong><div className="coveragePills compact"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div></div>
+      <div className="small muted">Darbe, tesisat / tadilat müdahaleleri, üçüncü kişi işlemleri ve kimyasal / aşındırıcı ürün kaynaklı hasarlar garanti dışında değerlendirilir.</div>
+    </div>
+    <div><label className="label">Ürün</label><select className="input" value={product} onChange={e => setProduct(e.target.value)}><option value="">Seçin</option>{SERVICE_PRODUCTS.map(item => <option key={item}>{item}</option>)}</select></div>
+    <div><label className="label">Talep türü</label><select className="input" value={issue} onChange={e => setIssue(e.target.value)}><option value="">Seçin</option>{SERVICE_ISSUES.map(item => <option key={item}>{item}</option>)}</select></div>
+    <div><label className="label">Açıklama</label><textarea className="input textarea" rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Sorunu kısaca anlatın. Örn: lavabo altından su sızıntısı var." /></div>
     {msg && <div className="errorBox">{msg}</div>}
     {ticket && <div className="successBox"><strong>Servis kaydınız alındı.</strong><div className="small">Talep numaranız: {ticket}</div></div>}
     <button className="btn dark" disabled={busy} type="submit">{busy ? 'Kaydediliyor…' : 'Servis Kaydını Oluştur'}</button>
+    <div className="card careMini"><strong>Porselen bakım notu</strong><div className="small muted spaceTop">Günlük temizlik için yumuşak, nemli bez yeterlidir. Güçlü kimyasallar ve aşındırıcı ürünlere ihtiyaç yoktur.</div></div>
   </form>
 }
 
 function AccountTab({ customer, residence, onReset }: { customer: Customer; residence: Residence; onReset: () => void }) {
   return <>
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
-    <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div><div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div></div>
+    <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div><div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
     <button className="btn ghost" onClick={onReset}>Bu cihazdaki hesabı değiştir</button>
   </>
 }
