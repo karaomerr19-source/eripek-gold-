@@ -5,10 +5,10 @@ import { useParams } from 'next/navigation'
 type Residence={block:string;floor:string;unit_no:string;delivery_date?:string|null;default_warranty_months?:number}
 type SessionData={customer?:{full_name:string;phone:string};residences?:Residence[]}
 const GATEWAY='https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
-const SUPABASE_ANON_JWT='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4a255ZHB5Z3N2d2RoeG91bWNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgxNjYwNjMsImV4cCI6MjEwMzc0MjA2M30.hA_46EhUr3rB_W3rVKByOs9Ao5NlDOKPuXPLSrMUHkE'
+const SUPABASE_PUBLIC_KEY='sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 
 async function gateway(body:Record<string,unknown>){
-  const res=await fetch(GATEWAY,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_ANON_JWT,'Authorization':`Bearer ${SUPABASE_ANON_JWT}`},body:JSON.stringify(body),cache:'no-store'})
+  const res=await fetch(GATEWAY,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_PUBLIC_KEY},body:JSON.stringify(body),cache:'no-store'})
   const data=await res.json().catch(()=>({}))
   if(!res.ok) throw new Error(data?.error||'request_failed')
   return data
