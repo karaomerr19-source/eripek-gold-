@@ -20,6 +20,29 @@ const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gatewa
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
 
+const STUDIO_ROOMS = [
+  { id: 'kitchen', title: 'Mutfak', sub: 'Ada • Tezgah • Kahve Köşesi', icon: 'K' },
+  { id: 'bedroom', title: 'Yatak Odası', sub: 'Başlık • Baza • LED Panel', icon: 'Y' },
+  { id: 'bathroom', title: 'Banyo', sub: 'Lavabo • Niş • Duvar', icon: 'B' },
+  { id: 'living', title: 'Salon', sub: 'TV Ünitesi • Masa • Dresuar', icon: 'S' },
+] as const
+
+const STUDIO_MODELS: Record<string, string[]> = {
+  kitchen: ['Şelale Ada', 'Düz Modern Ada', 'Oturma Çıkıntılı Ada'],
+  bedroom: ['Düz Panel', 'LED’li Panel', 'Tavana Kadar Panel'],
+  bathroom: ['Ayaklı Lavabo', 'Duvar Boyu Lavabo', 'Lavabo + Niş Seti'],
+  living: ['TV Duvarı', 'Konsol + Dresuar', 'Porselen Masa'],
+}
+
+const STUDIO_MATERIALS = [
+  { id: 'taj', name: 'Taj Mahal', note: 'Sıcak bej damar' },
+  { id: 'florence', name: 'Florence', note: 'Krem • altın damar' },
+  { id: 'angela', name: 'Angela', note: 'Açık taş dokusu' },
+  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm' },
+  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast' },
+] as const
+
+
 async function gateway(body: Record<string, unknown>) {
   const res = await fetch(GATEWAY, {
     method: 'POST',
@@ -185,10 +208,39 @@ function HomeTab({ residence, onService, onDiscover }: { residence: Residence; o
 }
 
 function DiscoverTab() {
+  const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>('kitchen')
+  const [model, setModel] = useState(STUDIO_MODELS.kitchen[0])
+  const [materialId, setMaterialId] = useState<(typeof STUDIO_MATERIALS)[number]['id']>('taj')
+  const [saved, setSaved] = useState(false)
+
+  const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
+  const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
+
+  function chooseRoom(id: (typeof STUDIO_ROOMS)[number]['id']) {
+    setRoomId(id)
+    setModel(STUDIO_MODELS[id][0])
+    setSaved(false)
+  }
+
   return <>
-    <div><div className="eyebrow gold">DİJİTAL TASARIM STÜDYOSU</div><h2 className="welcome">Alanınızı keşfedin</h2><div className="small muted">Porselen uygulama fikirlerini oda oda inceleyin.</div></div>
-    <div className="grid2 roomGrid"><Room title="Mutfak" sub="Ada • Tezgah • Kahve Köşesi" /><Room title="Yatak Odası" sub="Başlık • Baza • LED Panel" /><Room title="Banyo" sub="Lavabo • Niş • Duvar" /><Room title="Salon" sub="TV Ünitesi • Masa • Dresuar" /></div>
-    <div className="card"><strong>Model & taş seçimi</strong><div className="small muted spaceTop">Hazırladığımız gerçek mimari görseller eklendiğinde seçtiğiniz model ve porselene göre ön izleme burada değişecek.</div></div>
+    <div><div className="eyebrow gold">DİJİTAL TASARIM STÜDYOSU</div><h2 className="welcome">Evinizi tasarlayın</h2><div className="small muted">Odayı, modeli ve porseleni seçin. Gerçek renderlar geldiğinde aynı seçim ekranında birebir ön izleme değişecek.</div></div>
+
+    <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div>
+
+    <div className={`designPreview material-${material.id} room-${room.id}`}>
+      <div className="previewBadge">CANLI TASLAK</div>
+      <div className="scene sceneWall"></div>
+      <div className="scene sceneObject"></div>
+      <div className="scene sceneAccent"></div>
+      <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{model}</strong><div className="small">{material.name}</div></div>
+    </div>
+
+    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setSaved(false) }}>{m}</button>)}</div></div>
+
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setSaved(false) }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+
+    <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" className={saved ? 'miniSave saved' : 'miniSave'} onClick={() => setSaved(!saved)}>{saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
+    <div className="card studioNote"><strong>Gerçek render aşaması</strong><div className="small muted spaceTop">Senin hazırladığın veya bizim oluşturduğumuz renderları bu kombinasyonlara bağlayacağız. Sonradan yeni taş ya da model eklemek için sayfayı baştan yapmak gerekmeyecek.</div></div>
   </>
 }
 
@@ -238,5 +290,5 @@ function Room({ title, sub, onClick }: { title: string; sub: string; onClick?: (
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <main className="page"><section className="phone"><div className="top"><div className="brand"><span className="gold">MP</span> &nbsp; MASTER PORCELENTA</div><div className="sub">Eripek Gold • Garanti • Servis • Tasarım</div></div>{children}</section></main>
+  return <main className="page"><section className="phone"><div className="top brandBar"><div className="brandLockup"><div className="monogram">MP</div><div><div className="brand">MASTER PORCELENTA</div><div className="sub">Eripek Gold • Garanti • Servis • Tasarım</div></div></div><div className="goldDot"></div></div>{children}</section></main>
 }
