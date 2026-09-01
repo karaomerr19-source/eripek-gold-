@@ -57,6 +57,13 @@ const SERVICE_PRODUCTS = [
   'Diğer Porselen Uygulama',
 ] as const
 
+const PROJECT_REQUEST_TYPES = [
+  'Keşif ve ölçü talebi',
+  'Fiyat teklifi istiyorum',
+  'Bu tasarımı evime uygula',
+  'Yeni proje danışmanlığı',
+] as const
+
 const SERVICE_ISSUES = [
   'Su sızıntısı',
   'Çökme / ayrılma',
@@ -226,7 +233,7 @@ function Dashboard({ customer, residence, sessionToken, onReset }: { customer: C
     <div className="screen stack dashboardScreen">
       <div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>
       {tab === 'home' && <HomeTab residence={residence} onService={() => setTab('service')} onDiscover={() => setTab('discover')} />}
-      {tab === 'discover' && <DiscoverTab />}
+      {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} />}
       {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} />}
       {tab === 'account' && <AccountTab customer={customer} residence={residence} onReset={onReset} />}
     </div>
@@ -255,11 +262,16 @@ function HomeTab({ residence, onService, onDiscover }: { residence: Residence; o
   </>
 }
 
-function DiscoverTab() {
+function DiscoverTab({ residence, sessionToken }: { residence: Residence; sessionToken: string }) {
   const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>('kitchen')
   const [model, setModel] = useState(STUDIO_MODELS.kitchen[0])
   const [materialId, setMaterialId] = useState<(typeof STUDIO_MATERIALS)[number]['id']>('taj')
   const [saved, setSaved] = useState(false)
+  const [requestType, setRequestType] = useState(PROJECT_REQUEST_TYPES[0])
+  const [notes, setNotes] = useState('')
+  const [requestNo, setRequestNo] = useState('')
+  const [requestMsg, setRequestMsg] = useState('')
+  const [busy, setBusy] = useState(false)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
@@ -268,6 +280,27 @@ function DiscoverTab() {
     setRoomId(id)
     setModel(STUDIO_MODELS[id][0])
     setSaved(false)
+    setRequestNo('')
+  }
+
+  async function createProjectRequest() {
+    setRequestMsg(''); setRequestNo(''); setBusy(true)
+    try {
+      const data = await gateway({
+        action: 'project_request_create',
+        session_token: sessionToken,
+        residence_id: residence.id,
+        request_type: requestType,
+        room: room.title,
+        design_name: model,
+        material_name: material.name,
+        notes: notes.trim(),
+      })
+      setRequestNo(data.request.request_no)
+      setNotes('')
+    } catch {
+      setRequestMsg('Talebiniz oluşturulamadı. Lütfen tekrar deneyin.')
+    } finally { setBusy(false) }
   }
 
   return <>
@@ -277,18 +310,27 @@ function DiscoverTab() {
 
     <div className={`designPreview material-${material.id} room-${room.id}`}>
       <div className="previewBadge">CANLI TASLAK</div>
-      <div className="scene sceneWall"></div>
-      <div className="scene sceneObject"></div>
-      <div className="scene sceneAccent"></div>
+      <div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div>
       <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{model}</strong><div className="small">{material.name}</div></div>
     </div>
 
-    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setSaved(false) }}>{m}</button>)}</div></div>
-
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setSaved(false) }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setSaved(false); setRequestNo('') }}>{m}</button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setSaved(false); setRequestNo('') }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
 
     <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" className={saved ? 'miniSave saved' : 'miniSave'} onClick={() => setSaved(!saved)}>{saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
-    <div className="card studioNote"><strong>Gerçek render aşaması</strong><div className="small muted spaceTop">Senin hazırladığın veya bizim oluşturduğumuz renderları bu kombinasyonlara bağlayacağız. Sonradan yeni taş ya da model eklemek için sayfayı baştan yapmak gerekmeyecek.</div></div>
+
+    <div className="card projectLeadCard">
+      <div className="eyebrow gold">PROJENİZİ BAŞLATALIM</div>
+      <strong>Bu tasarımı evinizde değerlendirelim</strong>
+      <div className="small muted">Talebiniz daire bilgilerinizle birlikte Master Porcelenta ekibine iletilir. Tekrar adres veya telefon girmeniz gerekmez.</div>
+      <div><label className="label">Talep türü</label><select className="input" value={requestType} onChange={e => setRequestType(e.target.value as typeof requestType)}>{PROJECT_REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
+      <div><label className="label">Notunuz <span className="muted">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Örn: Ada tezgahı için yerinde ölçü ve fiyat istiyorum." /></div>
+      {requestMsg && <div className="errorBox">{requestMsg}</div>}
+      {requestNo && <div className="successBox"><strong>Talebiniz alındı.</strong><div className="small">Proje talep numaranız: {requestNo}</div></div>}
+      <button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? 'Talep oluşturuluyor…' : 'Keşif Talebi Oluştur'}</button>
+    </div>
+
+    <div className="card studioNote"><strong>Gerçek render aşaması</strong><div className="small muted spaceTop">Daire fotoğrafları ve gerçek porselen görselleri geldiğinde bu alanları birebir projeye dönüştüreceğiz. Yeni model veya taş eklemek için sistemi yeniden kurmak gerekmeyecek.</div></div>
   </>
 }
 
