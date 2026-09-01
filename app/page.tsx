@@ -12,13 +12,15 @@ type Residence = {
   status?: string
 }
 
-type Customer = { id?: string; full_name: string; phone: string }
+type Customer = { id?: string; full_name: string; phone: string; email?: string | null }
 type CatalogResponse = { project: { name: string; slug: string }; residences: Residence[] }
 type SessionResponse = { customer: Customer; residences: Residence[] }
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
+const ACCOUNT_CACHE_KEY = 'eripek_gold_account'
+const SESSION_COOKIE_KEY = 'eripek_gold_session'
 
 const STUDIO_ROOMS = [
   { id: 'kitchen', title: 'Mutfak', sub: 'Ada • Tezgah • Kahve Köşesi', icon: 'K' },
@@ -105,6 +107,44 @@ function unitNumber(unit: string) {
   return Number(unit.replace(/\D/g, '')) || 0
 }
 
+function getCookie(name: string) {
+  if (typeof document === 'undefined') return ''
+  const prefix = `${name}=`
+  const part = document.cookie.split(';').map(v => v.trim()).find(v => v.startsWith(prefix))
+  return part ? decodeURIComponent(part.slice(prefix.length)) : ''
+}
+
+function rememberSession(token: string) {
+  localStorage.setItem(SESSION_KEY, token)
+  document.cookie = `${SESSION_COOKIE_KEY}=${encodeURIComponent(token)}; Max-Age=${180 * 24 * 60 * 60}; Path=/; SameSite=Lax; Secure`
+}
+
+function forgetSession() {
+  localStorage.removeItem(SESSION_KEY)
+  localStorage.removeItem(ACCOUNT_CACHE_KEY)
+  document.cookie = `${SESSION_COOKIE_KEY}=; Max-Age=0; Path=/; SameSite=Lax; Secure`
+}
+
+function readRememberedSession() {
+  return localStorage.getItem(SESSION_KEY) || getCookie(SESSION_COOKIE_KEY)
+}
+
+function cacheAccount(customer: Customer, residence: Residence) {
+  localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify({ customer, residence }))
+}
+
+function readCachedAccount(): { customer: Customer; residence: Residence } | null {
+  try {
+    const raw = localStorage.getItem(ACCOUNT_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed?.customer?.full_name || !parsed?.residence?.block || !parsed?.residence?.unit_no) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 export default function Home() {
   const [stage, setStage] = useState<'loading' | 'register' | 'dashboard' | 'error'>('loading')
   const [catalog, setCatalog] = useState<Residence[]>([])
@@ -116,25 +156,49 @@ export default function Home() {
     let alive = true
     ;(async () => {
       try {
-        const saved = localStorage.getItem(SESSION_KEY)
+        const saved = readRememberedSession()
+        const cached = readCachedAccount()
+
+        // Aynı cihazda daha önce tanımlanmış müşteri formu yeniden görmez.
+        // Önbellekteki hesabı anında aç, oturumu arka planda doğrula.
+        if (saved && cached && alive) {
+          rememberSession(saved)
+          setCustomer(cached.customer)
+          setResidence(cached.residence)
+          setSessionToken(saved)
+          setStage('dashboard')
+        }
+
         if (saved) {
           try {
-            const s: SessionResponse = await gateway({ action: 'session', session_token: saved })
-            if (alive && s.customer && s.residences?.length) {
-              setCustomer(s.customer)
-              setResidence(s.residences[0])
+            const session: SessionResponse = await gateway({ action: 'session', session_token: saved })
+            if (alive && session.customer && session.residences?.length) {
+              const activeResidence = session.residences[0]
+              rememberSession(saved)
+              cacheAccount(session.customer, activeResidence)
+              setCustomer(session.customer)
+              setResidence(activeResidence)
               setSessionToken(saved)
               setStage('dashboard')
               return
             }
-          } catch {
-            localStorage.removeItem(SESSION_KEY)
+          } catch (err) {
+            const code = err instanceof Error ? err.message : ''
+            if (code === 'invalid_session') {
+              forgetSession()
+            } else if (cached) {
+              // Geçici ağ / sunucu hatasında müşteriyi tekrar kayıt ekranına atma.
+              return
+            } else {
+              if (alive) setStage('error')
+              return
+            }
           }
         }
 
-        const c: CatalogResponse = await gateway({ action: 'catalog' })
+        const catalogData: CatalogResponse = await gateway({ action: 'catalog' })
         if (!alive) return
-        setCatalog(c.residences || [])
+        setCatalog(catalogData.residences || [])
         setStage('register')
       } catch {
         if (alive) setStage('error')
@@ -146,7 +210,8 @@ export default function Home() {
   }, [])
 
   function loggedIn(data: any) {
-    localStorage.setItem(SESSION_KEY, data.session_token)
+    rememberSession(data.session_token)
+    cacheAccount(data.customer, data.residence)
     setSessionToken(data.session_token)
     setCustomer(data.customer)
     setResidence(data.residence)
@@ -154,7 +219,7 @@ export default function Home() {
   }
 
   function resetDevice() {
-    localStorage.removeItem(SESSION_KEY)
+    forgetSession()
     location.reload()
   }
 
@@ -174,11 +239,17 @@ export default function Home() {
 }
 
 function Register({ residences, onSuccess }: { residences: Residence[]; onSuccess: (data: any) => void }) {
+  const [mode, setMode] = useState<'register' | 'login'>('register')
   const [block, setBlock] = useState('')
   const [floor, setFloor] = useState('')
   const [unit, setUnit] = useState('')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [pin, setPin] = useState('')
+  const [pinAgain, setPinAgain] = useState('')
+  const [identifier, setIdentifier] = useState('')
+  const [loginPin, setLoginPin] = useState('')
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -189,41 +260,76 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
   async function submit(e: FormEvent) {
     e.preventDefault()
     setMsg('')
+    if (mode === 'login') {
+      if (!identifier.trim()) return setMsg('Telefon numaranızı veya e-posta adresinizi girin.')
+      if (!/^\d{6}$/.test(loginPin)) return setMsg('6 haneli Eripek Gold giriş kodunuzu girin.')
+      setBusy(true)
+      try {
+        const data = await gateway({ action: 'customer_login', identifier: identifier.trim(), pin: loginPin })
+        onSuccess(data)
+      } catch (err) {
+        const code = err instanceof Error ? err.message : ''
+        if (code === 'login_temporarily_locked') setMsg('Çok fazla hatalı deneme yapıldı. Güvenliğiniz için 15 dakika sonra tekrar deneyin.')
+        else setMsg('Giriş bilgileri eşleşmedi. Telefon / e-posta ve 6 haneli giriş kodunuzu kontrol edin.')
+      } finally { setBusy(false) }
+      return
+    }
+
     if (!block || !floor || !unit) return setMsg('Önce blok, kat ve dairenizi seçin.')
     if (name.trim().length < 3) return setMsg('Ad soyad bilgisini kontrol edin.')
     if (phone.replace(/\D/g, '').length < 10) return setMsg('Telefon numarasını kontrol edin.')
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setMsg('E-posta adresini kontrol edin.')
+    if (!/^\d{6}$/.test(pin)) return setMsg('Farklı cihazlardan giriş için 6 haneli bir giriş kodu belirleyin.')
+    if (pin !== pinAgain) return setMsg('Giriş kodları aynı değil.')
     setBusy(true)
     try {
-      const data = await gateway({ action: 'claim', block, floor: Number(floor), unit_no: unit, full_name: name.trim(), phone: phone.trim() })
+      const data = await gateway({ action: 'claim', block, floor: Number(floor), unit_no: unit, full_name: name.trim(), phone: phone.trim(), email: email.trim(), pin })
       onSuccess(data)
     } catch (err) {
       const code = err instanceof Error ? err.message : ''
-      if (code === 'residence_already_claimed') setMsg('Bu daire daha önce farklı bir telefonla tanımlanmış. Daire sahibiyseniz Master Porcelenta ile iletişime geçin.')
+      if (code === 'residence_already_claimed') setMsg('Bu daire daha önce tanımlanmış. “Zaten kaydım var” seçeneğinden giriş yapın.')
       else if (code === 'invalid_phone') setMsg('Telefonu 05xx xxx xx xx şeklinde girin.')
+      else if (code === 'invalid_email') setMsg('E-posta adresini kontrol edin.')
+      else if (code === 'email_in_use') setMsg('Bu e-posta başka bir hesaba bağlı görünüyor.')
       else setMsg('Kayıt tamamlanamadı. Bilgileri kontrol edip tekrar deneyin.')
-    } finally {
-      setBusy(false)
-    }
+    } finally { setBusy(false) }
   }
 
   return <form className="screen stack" onSubmit={submit}>
     <div className="hero compactHero"><div className="heroText"><div className="eyebrow">ERİPEK GOLD</div><div className="heroTitle">Evinize özel dijital alan</div><div className="heroCopy">Garanti, servis ve porselen tasarımlar tek yerde.</div></div></div>
 
-    <div className="sectionHead"><div className="stepBadge">1</div><div><strong>Dairenizi seçin</strong><div className="small muted">QR tüm Eripek Gold konutlarında ortaktır.</div></div></div>
-    <div className="grid3">
-      <div><label className="label">Blok</label><select className="input" value={block} onChange={e => { setBlock(e.target.value); setFloor(''); setUnit('') }}><option value="">Seçin</option>{blocks.map(b => <option key={b}>{b}</option>)}</select></div>
-      <div><label className="label">Kat</label><select className="input" value={floor} disabled={!block} onChange={e => { setFloor(e.target.value); setUnit('') }}><option value="">Seçin</option>{floors.map(f => <option key={f} value={f}>{f}. Kat</option>)}</select></div>
-      <div><label className="label">Daire</label><select className="input" value={unit} disabled={!floor} onChange={e => setUnit(e.target.value)}><option value="">Seçin</option>{units.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+    <div className="accessSwitch" role="tablist" aria-label="Hesap girişi">
+      <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setMsg('') }}>İlk kez kullanıyorum</button>
+      <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setMsg('') }}>Zaten kaydım var</button>
     </div>
 
-    {block && floor && unit && <div className="selectedResidence"><div className="small muted">Seçilen konut</div><strong>{block} Blok • {floor}. Kat • Daire {unit}</strong></div>}
+    {mode === 'login' ? <>
+      <div className="existingLoginIntro"><div className="eyebrow gold">MEVCUT HESABIM</div><strong>Daha önce dairenizi tanımladıysanız yeniden kayıt olmanıza gerek yok.</strong><div className="small muted">Telefon numaranız veya e-posta adresiniz ve 6 haneli Eripek Gold giriş kodunuzla her cihazdan hesabınıza ulaşın.</div></div>
+      <div><label className="label">Telefon veya E-posta</label><input className="input" value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" placeholder="05xx xxx xx xx veya ad@eposta.com" /></div>
+      <div><label className="label">6 Haneli Giriş Kodu</label><input className="input pinInput" value={loginPin} onChange={e => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" /></div>
+      {msg && <div className="errorBox">{msg}</div>}
+      <button className="btn primary" disabled={busy} type="submit">{busy ? 'Hesabınız açılıyor…' : 'Hesabıma Giriş Yap'}</button>
+      <div className="privacyLine">Aynı hesap <span>•</span> Farklı cihaz <span>•</span> 180 gün hatırlama</div>
+    </> : <>
+      <div className="sectionHead"><div className="stepBadge">1</div><div><strong>Dairenizi seçin</strong><div className="small muted">QR tüm Eripek Gold konutlarında ortaktır.</div></div></div>
+      <div className="grid3">
+        <div><label className="label">Blok</label><select className="input" value={block} onChange={e => { setBlock(e.target.value); setFloor(''); setUnit('') }}><option value="">Seçin</option>{blocks.map(b => <option key={b}>{b}</option>)}</select></div>
+        <div><label className="label">Kat</label><select className="input" value={floor} disabled={!block} onChange={e => { setFloor(e.target.value); setUnit('') }}><option value="">Seçin</option>{floors.map(f => <option key={f} value={f}>{f}. Kat</option>)}</select></div>
+        <div><label className="label">Daire</label><select className="input" value={unit} disabled={!floor} onChange={e => setUnit(e.target.value)}><option value="">Seçin</option>{units.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+      </div>
 
-    <div className="sectionHead"><div className="stepBadge">2</div><div><strong>Kişisel hesabınızı açın</strong><div className="small muted">Bir kez tanımlayın; bu cihaz sizi hatırlasın.</div></div></div>
-    <div><label className="label">Ad Soyad</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder="Adınız Soyadınız" /></div>
-    <div><label className="label">Telefon</label><input className="input" value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="05xx xxx xx xx" /></div>
-    {msg && <div className="errorBox">{msg}</div>}
-    <button className="btn primary" disabled={busy} type="submit">{busy ? 'Hesabınız hazırlanıyor…' : 'Dairemi Tanımla'}</button>
-    <div className="privacyLine">Şifre yok <span>•</span> SMS yok <span>•</span> Uygulama indirme yok</div>
+      {block && floor && unit && <div className="selectedResidence"><div className="small muted">Seçilen konut</div><strong>{block} Blok • {floor}. Kat • Daire {unit}</strong></div>}
+
+      <div className="sectionHead"><div className="stepBadge">2</div><div><strong>Kişisel hesabınızı açın</strong><div className="small muted">Bir kez tanımlayın; sonrasında her cihazdan giriş yapın.</div></div></div>
+      <div><label className="label">Ad Soyad</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder="Adınız Soyadınız" /></div>
+      <div><label className="label">Telefon</label><input className="input" value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="05xx xxx xx xx" /></div>
+      <div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" inputMode="email" placeholder="ad@eposta.com" /></div>
+      <div className="pinGrid"><div><label className="label">6 Haneli Giriş Kodu</label><input className="input pinInput" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div><div><label className="label">Giriş Kodunu Tekrar</label><input className="input pinInput" value={pinAgain} onChange={e => setPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div></div>
+      <div className="card loginCodeNote"><strong>Bu kod ne işe yarar?</strong><div className="small muted">Telefon değiştirdiğinizde veya başka bir cihazdan girdiğinizde yeniden kayıt olmadan hesabınızı açmanızı sağlar.</div></div>
+      {msg && <div className="errorBox">{msg}</div>}
+      <button className="btn primary" disabled={busy} type="submit">{busy ? 'Hesabınız hazırlanıyor…' : 'Dairemi Tanımla'}</button>
+      <div className="privacyLine">Tek kayıt <span>•</span> Her cihazdan giriş <span>•</span> Uygulama indirme yok</div>
+    </>}
   </form>
 }
 
@@ -235,7 +341,7 @@ function Dashboard({ customer, residence, sessionToken, onReset }: { customer: C
       {tab === 'home' && <HomeTab residence={residence} onService={() => setTab('service')} onDiscover={() => setTab('discover')} />}
       {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} />}
       {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} />}
-      {tab === 'account' && <AccountTab customer={customer} residence={residence} onReset={onReset} />}
+      {tab === 'account' && <AccountTab customer={customer} residence={residence} sessionToken={sessionToken} onReset={onReset} />}
     </div>
     <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
   </>
@@ -372,10 +478,37 @@ function ServiceTab({ residence, sessionToken }: { residence: Residence; session
   </form>
 }
 
-function AccountTab({ customer, residence, onReset }: { customer: Customer; residence: Residence; onReset: () => void }) {
+function AccountTab({ customer, residence, sessionToken, onReset }: { customer: Customer; residence: Residence; sessionToken: string; onReset: () => void }) {
+  const [email, setEmail] = useState(customer.email || '')
+  const [pin, setPin] = useState('')
+  const [pinAgain, setPinAgain] = useState('')
+  const [msg, setMsg] = useState('')
+  const [ok, setOk] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  async function saveLogin(e: FormEvent) {
+    e.preventDefault(); setMsg(''); setOk(false)
+    if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setMsg('E-posta adresini kontrol edin.')
+    if (!/^\d{6}$/.test(pin)) return setMsg('6 haneli bir giriş kodu belirleyin.')
+    if (pin !== pinAgain) return setMsg('Giriş kodları aynı değil.')
+    setBusy(true)
+    try {
+      await gateway({ action: 'login_setup', session_token: sessionToken, email: email.trim(), pin })
+      setOk(true); setPin(''); setPinAgain('')
+    } catch { setMsg('Giriş bilgileri güncellenemedi. Tekrar deneyin.') }
+    finally { setBusy(false) }
+  }
+
   return <>
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
-    <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div><div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
+    <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div>{customer.email && <div><div className="small muted">E-posta</div><strong>{customer.email}</strong></div>}<div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
+    <form className="card accountLoginSetup" onSubmit={saveLogin}>
+      <div><div className="eyebrow gold">FARKLI CİHAZDAN GİRİŞ</div><strong>Giriş bilgilerinizi yönetin</strong><div className="small muted spaceTop">Telefon numaranız her zaman kullanılabilir. İsterseniz e-posta ekleyin ve 6 haneli giriş kodunuzu belirleyin veya değiştirin.</div></div>
+      <div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="email" placeholder="ad@eposta.com" /></div>
+      <div className="pinGrid"><div><label className="label">Yeni 6 Haneli Kod</label><input className="input pinInput" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div><div><label className="label">Kodu Tekrar</label><input className="input pinInput" value={pinAgain} onChange={e => setPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div></div>
+      {msg && <div className="errorBox">{msg}</div>}{ok && <div className="successBox">Giriş bilgileriniz güncellendi. Artık farklı cihazlardan da hesabınıza girebilirsiniz.</div>}
+      <button className="btn dark" type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Giriş Bilgilerimi Kaydet'}</button>
+    </form>
     <button className="btn ghost" onClick={onReset}>Bu cihazdaki hesabı değiştir</button>
   </>
 }
