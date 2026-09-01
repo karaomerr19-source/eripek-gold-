@@ -12,10 +12,13 @@ const SERVICE_STATUS: Record<string, string> = {
 const PROJECT_STATUS: Record<string, string> = {
   new: 'Yeni', contacted: 'İletişime geçildi', survey_planned: 'Keşif planlandı', quoted: 'Teklif verildi', won: 'Kazanıldı', lost: 'Kaybedildi', cancelled: 'İptal',
 }
+const RECOVERY_STATUS: Record<string, string> = { pending:'Onay bekliyor', approved:'Onaylandı', rejected:'Reddedildi', completed:'Tamamlandı', cancelled:'İptal' }
+const RECOVERY_ANSWER: Record<string, string> = { yes:'Evet', no:'Hayır', not_sure:'Emin değilim' }
 
 type ServiceItem = { ticket_no:string; status:string; issue_type:string; description?:string; created_at:string; customer_name:string; phone:string; block:string; floor:string; unit_no:string }
 type ProjectItem = { request_no:string; status:string; request_type?:string; room?:string; design_name?:string; material_name?:string; notes?:string; created_at:string; customer_name:string; phone:string; block:string; floor:string; unit_no:string }
-type DashboardData = { service_requests: ServiceItem[]; project_requests: ProjectItem[] }
+type RecoveryItem = { request_no:string; status:string; question_key?:string; answer:string; note?:string; created_at:string; customer_name:string; phone:string; email?:string; block:string; floor:string; unit_no:string }
+type DashboardData = { service_requests: ServiceItem[]; project_requests: ProjectItem[]; recovery_requests: RecoveryItem[] }
 
 async function gateway(body: Record<string, unknown>) {
   const res = await fetch(GATEWAY, { method:'POST', headers:{ 'Content-Type':'application/json', apikey:PUBLIC_KEY }, body:JSON.stringify(body), cache:'no-store' })
@@ -28,13 +31,13 @@ function dateTR(v:string){return new Intl.DateTimeFormat('tr-TR',{day:'2-digit',
 export default function AdminPage(){
   const [stage,setStage]=useState<'loading'|'login'|'dashboard'>('loading')
   const [session,setSession]=useState('')
-  const [data,setData]=useState<DashboardData>({service_requests:[],project_requests:[]})
-  const [tab,setTab]=useState<'service'|'project'>('service')
+  const [data,setData]=useState<DashboardData>({service_requests:[],project_requests:[],recovery_requests:[]})
+  const [tab,setTab]=useState<'service'|'project'|'recovery'>('service')
   const [msg,setMsg]=useState('')
 
   async function load(token:string){
     const d=await gateway({action:'admin_dashboard',admin_session:token})
-    setData({service_requests:d.service_requests||[],project_requests:d.project_requests||[]})
+    setData({service_requests:d.service_requests||[],project_requests:d.project_requests||[],recovery_requests:d.recovery_requests||[]})
     setSession(token); setStage('dashboard')
   }
   useEffect(()=>{const saved=localStorage.getItem(ADMIN_SESSION_KEY); if(!saved){setStage('login');return} load(saved).catch(()=>{localStorage.removeItem(ADMIN_SESSION_KEY);setStage('login')})},[])
@@ -45,12 +48,13 @@ export default function AdminPage(){
 
   const activeServices=data.service_requests.filter(x=>!['completed','cancelled'].includes(x.status)).length
   const openProjects=data.project_requests.filter(x=>!['won','lost','cancelled'].includes(x.status)).length
+  const pendingRecoveries=data.recovery_requests.filter(x=>x.status==='pending').length
   return <AdminShell>
     <div className="adminHead"><div><div className="eyebrow gold">ERİPEK GOLD • YÖNETİM</div><h1>Müşteri Talepleri</h1><div className="small muted">Servis ve ek proje talepleri tek ekranda.</div></div><button className="adminLogout" onClick={logout}>Çıkış</button></div>
-    <div className="adminStats"><div><span>{activeServices}</span><small>Açık servis</small></div><div><span>{openProjects}</span><small>Açık proje</small></div><div><span>{data.service_requests.length+data.project_requests.length}</span><small>Toplam kayıt</small></div></div>
-    <div className="adminTabs"><button className={tab==='service'?'active':''} onClick={()=>setTab('service')}>Servis ({data.service_requests.length})</button><button className={tab==='project'?'active':''} onClick={()=>setTab('project')}>Proje / Keşif ({data.project_requests.length})</button></div>
+    <div className="adminStats"><div><span>{activeServices}</span><small>Açık servis</small></div><div><span>{openProjects}</span><small>Açık proje</small></div><div><span>{pendingRecoveries}</span><small>Kurtarma onayı</small></div><div><span>{data.service_requests.length+data.project_requests.length+data.recovery_requests.length}</span><small>Toplam kayıt</small></div></div>
+    <div className="adminTabs"><button className={tab==='service'?'active':''} onClick={()=>setTab('service')}>Servis ({data.service_requests.length})</button><button className={tab==='project'?'active':''} onClick={()=>setTab('project')}>Proje / Keşif ({data.project_requests.length})</button><button className={tab==='recovery'?'active':''} onClick={()=>setTab('recovery')}>Hesap Kurtarma ({pendingRecoveries})</button></div>
     {msg&&<div className="successBox">{msg}</div>}
-    {tab==='service' ? <AdminServices items={data.service_requests} session={session} onUpdated={()=>load(session)} setMsg={setMsg}/> : <AdminProjects items={data.project_requests} session={session} onUpdated={()=>load(session)} setMsg={setMsg}/>} 
+    {tab==='service' ? <AdminServices items={data.service_requests} session={session} onUpdated={()=>load(session)} setMsg={setMsg}/> : tab==='project' ? <AdminProjects items={data.project_requests} session={session} onUpdated={()=>load(session)} setMsg={setMsg}/> : <AdminRecoveries items={data.recovery_requests} session={session} onUpdated={()=>load(session)} setMsg={setMsg}/>} 
   </AdminShell>
 }
 
@@ -67,6 +71,15 @@ function AdminServices({items,session,onUpdated,setMsg}:{items:ServiceItem[];ses
 function AdminProjects({items,session,onUpdated,setMsg}:{items:ProjectItem[];session:string;onUpdated:()=>Promise<void>;setMsg:(v:string)=>void}){
   if(!items.length)return <Empty text="Henüz proje / keşif talebi yok." />
   return <div className="adminList">{items.map(x=><div className="adminTicket" key={x.request_no}><div className="adminTicketTop"><div><div className="ticketNo">{x.request_no}</div><strong>{x.customer_name}</strong><div className="small muted">{x.block} Blok • {x.floor}. Kat • Daire {x.unit_no} • {x.phone}</div></div><span className={`statusBadge st-${x.status}`}>{PROJECT_STATUS[x.status]||x.status}</span></div><div className="adminDetail"><b>{x.request_type||'Proje talebi'}</b><p>{[x.room,x.design_name,x.material_name].filter(Boolean).join(' • ')}</p>{x.notes&&<p className="muted">“{x.notes}”</p>}<small>{dateTR(x.created_at)}</small></div><StatusSelect value={x.status} labels={PROJECT_STATUS} onChange={async status=>{await gateway({action:'admin_project_update',admin_session:session,request_no:x.request_no,status});setMsg(`${x.request_no} güncellendi.`);await onUpdated()}}/></div>)}</div>
+}
+
+function AdminRecoveries({items,session,onUpdated,setMsg}:{items:RecoveryItem[];session:string;onUpdated:()=>Promise<void>;setMsg:(v:string)=>void}){
+  if(!items.length)return <Empty text="Henüz hesap kurtarma talebi yok." />
+  return <div className="adminList">{items.map(x=><div className="adminTicket recoveryAdminTicket" key={x.request_no}>
+    <div className="adminTicketTop"><div><div className="ticketNo">{x.request_no}</div><strong>{x.customer_name}</strong><div className="small muted">{x.block} Blok • {x.floor}. Kat • Daire {x.unit_no} • {x.phone}{x.email?` • ${x.email}`:''}</div></div><span className={`statusBadge st-${x.status}`}>{RECOVERY_STATUS[x.status]||x.status}</span></div>
+    <div className="adminDetail"><b>Güvenlik sorusu</b><p>Dairenizde daha önce Master Porcelenta tarafından ada tezgâhı uygulaması yapıldı mı?</p><div className="recoveryAnswerAdmin"><span>Müşteri yanıtı</span><strong>{RECOVERY_ANSWER[x.answer]||x.answer}</strong></div>{x.note&&<p className="muted">Ek not: “{x.note}”</p>}<small>{dateTR(x.created_at)}</small></div>
+    {x.status==='pending' ? <div className="recoveryAdminActions"><button className="adminApprove" onClick={async()=>{await gateway({action:'admin_recovery_update',admin_session:session,request_no:x.request_no,status:'approved'});setMsg(`${x.request_no} onaylandı. Müşteri artık yeni giriş kodunu belirleyebilir.`);await onUpdated()}}>Onayla</button><button className="adminReject" onClick={async()=>{await gateway({action:'admin_recovery_update',admin_session:session,request_no:x.request_no,status:'rejected'});setMsg(`${x.request_no} reddedildi.`);await onUpdated()}}>Reddet</button></div> : <div className="small muted">{x.status==='approved'?'Müşteri yeni giriş kodunu belirleyebilir.':x.status==='completed'?'Müşteri yeni giriş kodunu oluşturdu ve hesabına erişti.':'Talep işlem dışı.'}</div>}
+  </div>)}</div>
 }
 function StatusSelect({value,labels,onChange}:{value:string;labels:Record<string,string>;onChange:(v:string)=>Promise<void>}){const [busy,setBusy]=useState(false);return <div><label className="label">Durum</label><select className="input" value={value} disabled={busy} onChange={async e=>{setBusy(true);try{await onChange(e.target.value)}finally{setBusy(false)}}}>{Object.entries(labels).map(([k,v])=><option value={k} key={k}>{v}</option>)}</select></div>}
 function Empty({text}:{text:string}){return <div className="adminEmpty">{text}</div>}

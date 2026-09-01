@@ -239,7 +239,7 @@ export default function Home() {
 }
 
 function Register({ residences, onSuccess }: { residences: Residence[]; onSuccess: (data: any) => void }) {
-  const [mode, setMode] = useState<'register' | 'login'>('register')
+  const [mode, setMode] = useState<'register' | 'login' | 'recovery'>('register')
   const [block, setBlock] = useState('')
   const [floor, setFloor] = useState('')
   const [unit, setUnit] = useState('')
@@ -253,9 +253,44 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
   const [msg, setMsg] = useState('')
   const [busy, setBusy] = useState(false)
 
+  const [recoveryStep, setRecoveryStep] = useState<'form' | 'pending' | 'reset'>('form')
+  const [recoveryIdentifier, setRecoveryIdentifier] = useState('')
+  const [recoveryBlock, setRecoveryBlock] = useState('')
+  const [recoveryFloor, setRecoveryFloor] = useState('')
+  const [recoveryUnit, setRecoveryUnit] = useState('')
+  const [recoveryAnswer, setRecoveryAnswer] = useState('')
+  const [recoveryNote, setRecoveryNote] = useState('')
+  const [recoveryRequestNo, setRecoveryRequestNo] = useState('')
+  const [recoverySecret, setRecoverySecret] = useState('')
+  const [recoveryStatus, setRecoveryStatus] = useState<'pending' | 'approved' | 'rejected' | 'completed' | ''>('')
+  const [newPin, setNewPin] = useState('')
+  const [newPinAgain, setNewPinAgain] = useState('')
+
   const blocks = useMemo(() => Array.from(new Set(residences.map(r => r.block))).sort(), [residences])
   const floors = useMemo(() => Array.from(new Set(residences.filter(r => r.block === block).map(r => r.floor))).sort((a, b) => a - b), [residences, block])
   const units = useMemo(() => residences.filter(r => r.block === block && String(r.floor) === floor).map(r => r.unit_no).sort((a, b) => unitNumber(a) - unitNumber(b)), [residences, block, floor])
+  const recoveryFloors = useMemo(() => Array.from(new Set(residences.filter(r => r.block === recoveryBlock).map(r => r.floor))).sort((a, b) => a - b), [residences, recoveryBlock])
+  const recoveryUnits = useMemo(() => residences.filter(r => r.block === recoveryBlock && String(r.floor) === recoveryFloor).map(r => r.unit_no).sort((a, b) => unitNumber(a) - unitNumber(b)), [residences, recoveryBlock, recoveryFloor])
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('eripek_gold_recovery_pending')
+      if (!raw) return
+      const saved = JSON.parse(raw)
+      if (!saved?.request_no || !saved?.recovery_secret) return
+      setRecoveryRequestNo(saved.request_no)
+      setRecoverySecret(saved.recovery_secret)
+      setRecoveryStatus(saved.status || 'pending')
+      setRecoveryStep(saved.status === 'approved' ? 'reset' : 'pending')
+    } catch {}
+  }, [])
+
+  function rememberRecovery(requestNo: string, secret: string, status = 'pending') {
+    localStorage.setItem('eripek_gold_recovery_pending', JSON.stringify({ request_no: requestNo, recovery_secret: secret, status }))
+  }
+  function clearRecovery() {
+    localStorage.removeItem('eripek_gold_recovery_pending')
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -270,7 +305,7 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
       } catch (err) {
         const code = err instanceof Error ? err.message : ''
         if (code === 'login_temporarily_locked') setMsg('Çok fazla hatalı deneme yapıldı. Güvenliğiniz için 15 dakika sonra tekrar deneyin.')
-        else setMsg('Giriş bilgileri eşleşmedi. Telefon / e-posta ve 6 haneli giriş kodunuzu kontrol edin.')
+        else setMsg('Giriş bilgileri eşleşmedi. Giriş kodunuzu unuttuysanız “Giriş kodumu unuttum” seçeneğini kullanın.')
       } finally { setBusy(false) }
       return
     }
@@ -295,6 +330,94 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
     } finally { setBusy(false) }
   }
 
+  async function createRecovery(e: FormEvent) {
+    e.preventDefault(); setMsg('')
+    if (!recoveryIdentifier.trim()) return setMsg('Kayıtlı telefon numaranızı veya e-posta adresinizi girin.')
+    if (!recoveryBlock || !recoveryFloor || !recoveryUnit) return setMsg('Dairenizin blok, kat ve daire bilgisini seçin.')
+    if (!recoveryAnswer) return setMsg('Güvenlik sorusunu yanıtlayın.')
+    setBusy(true)
+    try {
+      const data = await gateway({
+        action: 'recovery_create', identifier: recoveryIdentifier.trim(), block: recoveryBlock,
+        floor: Number(recoveryFloor), unit_no: recoveryUnit, question_key: 'island_counter',
+        answer: recoveryAnswer, note: recoveryNote.trim(),
+      })
+      setRecoveryRequestNo(data.request_no); setRecoverySecret(data.recovery_secret); setRecoveryStatus('pending'); setRecoveryStep('pending')
+      rememberRecovery(data.request_no, data.recovery_secret, 'pending')
+    } catch (err) {
+      const code = err instanceof Error ? err.message : ''
+      if (code === 'recovery_rate_limited') setMsg('Kısa sürede çok fazla kurtarma talebi oluşturuldu. Bir süre sonra tekrar deneyin.')
+      else if (code === 'recovery_information_not_matched') setMsg('Telefon / e-posta ile daire bilgileri eşleşmedi. Bilgileri kontrol edin.')
+      else setMsg('Hesap kurtarma talebi oluşturulamadı. Lütfen tekrar deneyin.')
+    } finally { setBusy(false) }
+  }
+
+  async function checkRecovery() {
+    setMsg(''); setBusy(true)
+    try {
+      const data = await gateway({ action: 'recovery_status', request_no: recoveryRequestNo, recovery_secret: recoverySecret })
+      const status = data.recovery.status as 'pending' | 'approved' | 'rejected' | 'completed'
+      setRecoveryStatus(status); rememberRecovery(recoveryRequestNo, recoverySecret, status)
+      if (status === 'approved') setRecoveryStep('reset')
+      else if (status === 'pending') setMsg('Talebiniz henüz yönetici onayında. Onaylandıktan sonra yeni giriş kodunuzu belirleyebilirsiniz.')
+      else if (status === 'rejected') { setMsg('Kurtarma talebi onaylanmadı. Bilgilerinizi kontrol edip yeni bir talep oluşturabilirsiniz.'); clearRecovery() }
+      else if (status === 'completed') { setMsg('Bu kurtarma talebi daha önce tamamlanmış. Yeni giriş kodunuzla “Zaten kaydım var” bölümünden giriş yapın.'); clearRecovery() }
+    } catch { setMsg('Talep durumu kontrol edilemedi. Lütfen tekrar deneyin.') }
+    finally { setBusy(false) }
+  }
+
+  async function completeRecovery(e: FormEvent) {
+    e.preventDefault(); setMsg('')
+    if (!/^\d{6}$/.test(newPin)) return setMsg('Yeni giriş kodunuz 6 rakam olmalı.')
+    if (newPin !== newPinAgain) return setMsg('Yeni giriş kodları aynı değil.')
+    setBusy(true)
+    try {
+      const data = await gateway({ action: 'recovery_complete', request_no: recoveryRequestNo, recovery_secret: recoverySecret, pin: newPin })
+      clearRecovery(); onSuccess(data)
+    } catch (err) {
+      const code = err instanceof Error ? err.message : ''
+      if (code === 'recovery_pending') setMsg('Talep henüz onaylanmadı.')
+      else if (code === 'recovery_rejected') setMsg('Bu kurtarma talebi reddedilmiş.')
+      else setMsg('Yeni giriş kodu kaydedilemedi. Lütfen tekrar deneyin.')
+    } finally { setBusy(false) }
+  }
+
+  if (mode === 'recovery') {
+    return <div className="screen stack">
+      <div className="hero compactHero"><div className="heroText"><div className="eyebrow">ERİPEK GOLD</div><div className="heroTitle">Hesabınızı geri alın</div><div className="heroCopy">SMS gerekmeden, daire doğrulaması ve yönetici onayıyla yeni giriş kodunuzu oluşturun.</div></div></div>
+      <button type="button" className="recoveryBack" onClick={() => { setMode('login'); setMsg('') }}>← Giriş ekranına dön</button>
+
+      {recoveryStep === 'form' && <form className="stack" onSubmit={createRecovery}>
+        <div className="existingLoginIntro"><div className="eyebrow gold">HESAP KURTARMA</div><strong>Önce hesabınızı ve dairenizi doğrulayalım.</strong><div className="small muted">Bilgiler eşleşirse talebiniz Master Porcelenta yönetim paneline düşer. Onaydan sonra yeni 6 haneli giriş kodunuzu siz belirlersiniz.</div></div>
+        <div><label className="label">Kayıtlı Telefon veya E-posta</label><input className="input" value={recoveryIdentifier} onChange={e => setRecoveryIdentifier(e.target.value)} inputMode="email" autoComplete="username" placeholder="05xx xxx xx xx veya ad@eposta.com" /></div>
+        <div className="grid3">
+          <div><label className="label">Blok</label><select className="input" value={recoveryBlock} onChange={e => { setRecoveryBlock(e.target.value); setRecoveryFloor(''); setRecoveryUnit('') }}><option value="">Seçin</option>{blocks.map(b => <option key={b}>{b}</option>)}</select></div>
+          <div><label className="label">Kat</label><select className="input" value={recoveryFloor} disabled={!recoveryBlock} onChange={e => { setRecoveryFloor(e.target.value); setRecoveryUnit('') }}><option value="">Seçin</option>{recoveryFloors.map(f => <option key={f} value={f}>{f}. Kat</option>)}</select></div>
+          <div><label className="label">Daire</label><select className="input" value={recoveryUnit} disabled={!recoveryFloor} onChange={e => setRecoveryUnit(e.target.value)}><option value="">Seçin</option>{recoveryUnits.map(u => <option key={u} value={u}>{u}</option>)}</select></div>
+        </div>
+        <div className="securityQuestion"><div className="eyebrow gold">GÜVENLİK SORUSU</div><strong>Dairenizde Master Porcelenta tarafından daha önce ada tezgâhı uygulaması yapıldı mı?</strong><div className="securityChoices"><button type="button" className={recoveryAnswer === 'yes' ? 'active' : ''} onClick={() => setRecoveryAnswer('yes')}>Evet</button><button type="button" className={recoveryAnswer === 'no' ? 'active' : ''} onClick={() => setRecoveryAnswer('no')}>Hayır</button><button type="button" className={recoveryAnswer === 'not_sure' ? 'active' : ''} onClick={() => setRecoveryAnswer('not_sure')}>Emin değilim</button></div></div>
+        <div><label className="label">Ek doğrulama notu <span className="optionalText">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={recoveryNote} onChange={e => setRecoveryNote(e.target.value)} placeholder="Örn: Daireyi eşim teslim aldı / lavaboda özel uygulama vardı / bildiğiniz başka bir detay" /></div>
+        {msg && <div className="errorBox">{msg}</div>}
+        <button className="btn dark" disabled={busy}>{busy ? 'Talep oluşturuluyor…' : 'Hesap Kurtarma Talebi Oluştur'}</button>
+      </form>}
+
+      {recoveryStep === 'pending' && <div className="stack">
+        <div className="recoveryTicket"><div className="recoveryIcon">✓</div><div><div className="eyebrow gold">TALEBİNİZ ALINDI</div><strong>{recoveryRequestNo}</strong><div className="small muted">Güvenlik kontrolü için yönetici onayı bekleniyor.</div></div></div>
+        <div className="card"><strong>Şimdi ne olacak?</strong><div className="small muted spaceTop">Master Porcelenta talebinizi admin panelinden kontrol edip onaylayacak. Bu sayfayı kapatsanız bile aynı cihaz talebinizi hatırlar.</div></div>
+        {msg && <div className={recoveryStatus === 'rejected' ? 'errorBox' : 'successBox'}>{msg}</div>}
+        <button className="btn primary" type="button" disabled={busy} onClick={checkRecovery}>{busy ? 'Kontrol ediliyor…' : 'Onay Durumunu Kontrol Et'}</button>
+        <button className="btn ghost" type="button" onClick={() => { clearRecovery(); setRecoveryRequestNo(''); setRecoverySecret(''); setRecoveryStatus(''); setRecoveryStep('form'); setMsg('') }}>Yeni bir kurtarma talebi oluştur</button>
+      </div>}
+
+      {recoveryStep === 'reset' && <form className="stack" onSubmit={completeRecovery}>
+        <div className="successBox"><strong>Kimliğiniz doğrulandı.</strong><div className="small">Talebiniz onaylandı. Şimdi yeni Eripek Gold giriş kodunuzu belirleyin.</div></div>
+        <div className="pinGrid"><div><label className="label">Yeni 6 Haneli Kod</label><input className="input pinInput" value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div><div><label className="label">Yeni Kodu Tekrar</label><input className="input pinInput" value={newPinAgain} onChange={e => setNewPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div></div>
+        {msg && <div className="errorBox">{msg}</div>}
+        <button className="btn primary" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Yeni Giriş Kodumu Kaydet ve Hesabımı Aç'}</button>
+      </form>}
+    </div>
+  }
+
   return <form className="screen stack" onSubmit={submit}>
     <div className="hero compactHero"><div className="heroText"><div className="eyebrow">ERİPEK GOLD</div><div className="heroTitle">Evinize özel dijital alan</div><div className="heroCopy">Garanti, servis ve porselen tasarımlar tek yerde.</div></div></div>
 
@@ -309,6 +432,7 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
       <div><label className="label">6 Haneli Giriş Kodu</label><input className="input pinInput" value={loginPin} onChange={e => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" /></div>
       {msg && <div className="errorBox">{msg}</div>}
       <button className="btn primary" disabled={busy} type="submit">{busy ? 'Hesabınız açılıyor…' : 'Hesabıma Giriş Yap'}</button>
+      <button className="forgotCodeBtn" type="button" onClick={() => { setMode('recovery'); setRecoveryStep(recoveryRequestNo ? (recoveryStatus === 'approved' ? 'reset' : 'pending') : 'form'); setMsg('') }}>Giriş kodumu unuttum</button>
       <div className="privacyLine">Aynı hesap <span>•</span> Farklı cihaz <span>•</span> 180 gün hatırlama</div>
     </> : <>
       <div className="sectionHead"><div className="stepBadge">1</div><div><strong>Dairenizi seçin</strong><div className="small muted">QR tüm Eripek Gold konutlarında ortaktır.</div></div></div>
