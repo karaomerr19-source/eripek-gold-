@@ -822,5 +822,5 @@ function Room({ title, sub, onClick }: { title: string; sub: string; onClick?: (
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return <main className="page"><section className="phone"><div className="top brandBar"><div className="brandLockup"><div className="monogram">MP</div><div><div className="brand">MASTER PORCELENTA</div><div className="sub">Eripek Gold • Garanti • Servis • Tasarım</div></div></div><div className="goldDot"></div></div>{children}</section></main>
+  return <main className="page"><section className="phone"><div className="top brandBar"><div className="brandLockup"><img className="brandMarkImg" src="/master-porcelenta-mark.png" alt="Master Porcelenta" /><div><div className="brand">MASTER PORCELENTA</div><div className="sub">Eripek Gold • Garanti • Servis • Tasarım</div></div></div><div className="goldDot"></div></div>{children}</section></main>
 }
