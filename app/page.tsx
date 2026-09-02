@@ -15,6 +15,14 @@ type Residence = {
 type Customer = { id?: string; full_name: string; phone: string; email?: string | null }
 type CatalogResponse = { project: { name: string; slug: string }; residences: Residence[] }
 type SessionResponse = { customer: Customer; residences: Residence[] }
+type ServiceAttachment = { storage_path?: string; mime_type?: string; signed_url?: string; created_at?: string }
+type ServiceRequestItem = { id?: string; ticket_no: string; status: string; issue_type: string; description?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string; attachments?: ServiceAttachment[] }
+type ProjectRequestItem = { request_no: string; status: string; request_type?: string | null; room?: string | null; design_name?: string | null; material_name?: string | null; notes?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string }
+type InstalledProduct = { id: string; residence_id: string; product_code?: string | null; category: string; name: string; installed_at?: string | null; warranty_months?: number | null; notes?: string | null; status?: string }
+type FavoriteItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; created_at?: string }
+type StudioVariant = { room?: string | null; design_name?: string | null; model_code?: string | null; material_name?: string | null; preview_image_url?: string | null }
+type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[] }
+type ServicePhoto = { name: string; data_url: string }
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
@@ -65,6 +73,32 @@ const PROJECT_REQUEST_TYPES = [
   'Bu tasarımı evime uygula',
   'Yeni proje danışmanlığı',
 ] as const
+
+const PROJECT_REQUEST_UI: Record<(typeof PROJECT_REQUEST_TYPES)[number], { button: string; busy: string; success: string }> = {
+  'Keşif ve ölçü talebi': {
+    button: 'Keşif ve Ölçü Talebi Gönder',
+    busy: 'Keşif talebiniz oluşturuluyor…',
+    success: 'Keşif ve ölçü talebiniz alındı.',
+  },
+  'Fiyat teklifi istiyorum': {
+    button: 'Fiyat Teklifi Talebi Gönder',
+    busy: 'Fiyat teklifi talebiniz oluşturuluyor…',
+    success: 'Fiyat teklifi talebiniz alındı.',
+  },
+  'Bu tasarımı evime uygula': {
+    button: 'Bu Tasarımı Evime Uygula',
+    busy: 'Uygulama talebiniz iletiliyor…',
+    success: 'Tasarımı evinize uygulama talebiniz alındı.',
+  },
+  'Yeni proje danışmanlığı': {
+    button: 'Proje Danışmanlığı Talebi Gönder',
+    busy: 'Danışmanlık talebiniz oluşturuluyor…',
+    success: 'Proje danışmanlığı talebiniz alındı.',
+  },
+}
+
+const SERVICE_STATUS_LABELS: Record<string, string> = { received: 'Alındı', reviewing: 'İnceleniyor', scheduled: 'Planlandı', in_progress: 'İşlemde', completed: 'Tamamlandı', cancelled: 'İptal' }
+const PROJECT_STATUS_LABELS: Record<string, string> = { new: 'Yeni', contacted: 'İletişime geçildi', survey_planned: 'Keşif planlandı', quoted: 'Teklif verildi', won: 'Onaylandı', lost: 'Sonuçlanmadı', cancelled: 'İptal' }
 
 const SERVICE_ISSUES = [
   'Su sızıntısı',
@@ -143,6 +177,39 @@ function readCachedAccount(): { customer: Customer; residence: Residence } | nul
   } catch {
     return null
   }
+}
+
+function dateTimeTR(value?: string | null) {
+  if (!value) return ''
+  return new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(value))
+}
+
+function compressServicePhoto(file: File): Promise<ServicePhoto> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) return reject(new Error('not_image'))
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('read_failed'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('decode_failed'))
+      img.onload = () => {
+        const max = 1400
+        const scale = Math.min(1, max / Math.max(img.width, img.height))
+        const width = Math.max(1, Math.round(img.width * scale))
+        const height = Math.max(1, Math.round(img.height * scale))
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return reject(new Error('canvas_failed'))
+        ctx.drawImage(img, 0, 0, width, height)
+        const dataUrl = canvas.toDataURL('image/jpeg', .78)
+        if (dataUrl.length > 2_650_000) return reject(new Error('too_large'))
+        resolve({ name: file.name || 'servis-fotografi.jpg', data_url: dataUrl })
+      }
+      img.src = String(reader.result || '')
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function Home() {
@@ -458,28 +525,60 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
 }
 
 function Dashboard({ customer, residence, sessionToken, onReset }: { customer: Customer; residence: Residence; sessionToken: string; onReset: () => void }) {
-  const [tab, setTab] = useState<'home' | 'discover' | 'service' | 'account'>('home')
+  const [tab, setTab] = useState<'home' | 'discover' | 'requests' | 'service' | 'account'>('home')
+  const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [] })
+  const [portalLoading, setPortalLoading] = useState(true)
+
+  async function refreshPortal() {
+    try {
+      const data = await gateway({ action: 'customer_portal', session_token: sessionToken })
+      setPortal({
+        service_requests: data.service_requests || [],
+        project_requests: data.project_requests || [],
+        installed_products: data.installed_products || [],
+        favorites: data.favorites || [],
+        studio_variants: data.studio_variants || [],
+      })
+    } finally { setPortalLoading(false) }
+  }
+
+  useEffect(() => { refreshPortal().catch(() => setPortalLoading(false)) }, [sessionToken])
+
   return <>
     <div className="screen stack dashboardScreen">
       <div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>
-      {tab === 'home' && <HomeTab residence={residence} onService={() => setTab('service')} onDiscover={() => setTab('discover')} />}
-      {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} />}
-      {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} />}
+      {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => setTab('service')} onDiscover={() => setTab('discover')} onRequests={() => setTab('requests')} />}
+      {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} studioVariants={portal.studio_variants} onRefresh={refreshPortal} />}
+      {tab === 'requests' && <RequestsTab portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
+      {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} onCreated={refreshPortal} />}
       {tab === 'account' && <AccountTab customer={customer} residence={residence} sessionToken={sessionToken} onReset={onReset} />}
     </div>
-    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
+    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
   </>
 }
 
-function HomeTab({ residence, onService, onDiscover }: { residence: Residence; onService: () => void; onDiscover: () => void }) {
+function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRequests }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onRequests: () => void }) {
   const months = residence.default_warranty_months || 12
   const warrantyEnd = warrantyEndDate(residence.delivery_date, months)
+  const products = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)
+  const recent = [
+    ...portal.service_requests.map(x => ({ kind: 'Servis', no: x.ticket_no, status: SERVICE_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
+    ...portal.project_requests.map(x => ({ kind: x.request_type || 'Proje', no: x.request_no, status: PROJECT_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
+  ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 2)
   return <>
     <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
     <div className="grid2">
-      <div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date && <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div>}</div>
+      <div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date ? <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div> : <div className="small warrantyPending">Montaj tarihi sisteme işlendiğinde garanti takviminiz burada görünecek.</div>}</div>
       <button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button>
     </div>
+
+    <div className="card productsCard">
+      <div className="sectionRow"><div><div className="eyebrow gold">ÜRÜNLERİM</div><strong>Evinizdeki Master Porcelenta uygulamaları</strong></div><span className="countPill">{products.length}</span></div>
+      {portalLoading ? <div className="small muted">Ürün kayıtları yükleniyor…</div> : products.length ? <div className="productList">{products.map(p => { const productMonths = p.warranty_months || months; return <div className="productItem" key={p.id}><div className="productIcon">MP</div><div><strong>{p.name}</strong><div className="small muted">{p.category}</div><div className="productMeta"><span>Montaj: {formatDateTR(p.installed_at)}</span><span>Garanti: {p.installed_at ? warrantyEndDate(p.installed_at, productMonths) : 'Kayıt bekleniyor'}</span></div></div></div> })}</div> : <div className="emptySoft"><strong>Montaj kaydı bekleniyor</strong><div className="small muted">Lavabo, niş ve diğer uygulamalarınız sisteme işlendiğinde ürün bazlı garanti bilgileri burada yer alacak.</div></div>}
+    </div>
+
+    <button className="card latestRequestsCard" onClick={onRequests}><div className="sectionRow"><div><div className="eyebrow gold">TALEPLERİM</div><strong>Son işlemleriniz</strong></div><b>›</b></div>{portalLoading ? <div className="small muted">Talepler yükleniyor…</div> : recent.length ? <div className="latestRequestList">{recent.map(x => <div key={x.no}><span>{x.kind}</span><strong>{x.status}</strong><small>{x.no}</small></div>)}</div> : <div className="small muted">Henüz servis veya proje talebiniz bulunmuyor.</div>}</button>
+
     <div className="card warrantyInfo">
       <div className="eyebrow gold">GARANTİ KAPSAMI</div>
       <div className="coveragePills"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div>
@@ -492,112 +591,153 @@ function HomeTab({ residence, onService, onDiscover }: { residence: Residence; o
   </>
 }
 
-function DiscoverTab({ residence, sessionToken }: { residence: Residence; sessionToken: string }) {
+function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; studioVariants: StudioVariant[]; onRefresh: () => Promise<void> }) {
   const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>('kitchen')
   const [model, setModel] = useState(STUDIO_MODELS.kitchen[0])
   const [materialId, setMaterialId] = useState<(typeof STUDIO_MATERIALS)[number]['id']>('taj')
-  const [saved, setSaved] = useState(false)
   const [requestType, setRequestType] = useState(PROJECT_REQUEST_TYPES[0])
   const [notes, setNotes] = useState('')
   const [requestNo, setRequestNo] = useState('')
   const [requestMsg, setRequestMsg] = useState('')
+  const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
+  const requestUi = PROJECT_REQUEST_UI[requestType]
+  const saved = favorites.some(f => f.residence_id === residence.id && f.room === room.title && f.design_name === model && f.material_name === material.name)
+  const realPreview = studioVariants.find(v => v.room === room.title && (v.design_name === model || v.model_code === model) && v.material_name === material.name)
 
   function chooseRoom(id: (typeof STUDIO_ROOMS)[number]['id']) {
-    setRoomId(id)
-    setModel(STUDIO_MODELS[id][0])
-    setSaved(false)
+    setRoomId(id); setModel(STUDIO_MODELS[id][0]); setRequestNo('')
+  }
+
+  function openFavorite(f: FavoriteItem) {
+    const targetRoom = STUDIO_ROOMS.find(r => r.title === f.room)
+    if (!targetRoom) return
+    setRoomId(targetRoom.id)
+    setModel(f.design_name && STUDIO_MODELS[targetRoom.id].includes(f.design_name) ? f.design_name : STUDIO_MODELS[targetRoom.id][0])
+    const targetMaterial = STUDIO_MATERIALS.find(m => m.name === f.material_name)
+    if (targetMaterial) setMaterialId(targetMaterial.id)
     setRequestNo('')
+  }
+
+  async function toggleFavorite() {
+    setFavoriteBusy(true); setRequestMsg('')
+    try {
+      await gateway({ action: 'favorite_toggle', session_token: sessionToken, residence_id: residence.id, room: room.title, design_name: model, material_name: material.name })
+      await onRefresh()
+    } catch { setRequestMsg('Seçiminiz kaydedilemedi. Lütfen tekrar deneyin.') }
+    finally { setFavoriteBusy(false) }
   }
 
   async function createProjectRequest() {
     setRequestMsg(''); setRequestNo(''); setBusy(true)
     try {
       const data = await gateway({
-        action: 'project_request_create',
-        session_token: sessionToken,
-        residence_id: residence.id,
-        request_type: requestType,
-        room: room.title,
-        design_name: model,
-        material_name: material.name,
-        notes: notes.trim(),
+        action: 'project_request_create', session_token: sessionToken, residence_id: residence.id,
+        request_type: requestType, room: room.title, design_name: model, material_name: material.name, notes: notes.trim(),
       })
-      setRequestNo(data.request.request_no)
-      setNotes('')
-    } catch {
-      setRequestMsg('Talebiniz oluşturulamadı. Lütfen tekrar deneyin.')
-    } finally { setBusy(false) }
+      setRequestNo(data.request.request_no); setNotes(''); await onRefresh()
+    } catch { setRequestMsg('Talebiniz oluşturulamadı. Lütfen tekrar deneyin.') }
+    finally { setBusy(false) }
   }
 
   return <>
-    <div><div className="eyebrow gold">DİJİTAL TASARIM STÜDYOSU</div><h2 className="welcome">Evinizi tasarlayın</h2><div className="small muted">Odayı, modeli ve porseleni seçin. Gerçek renderlar geldiğinde aynı seçim ekranında birebir ön izleme değişecek.</div></div>
+    <div><div className="eyebrow gold">DİJİTAL TASARIM SEÇİMİ</div><h2 className="welcome">Eviniz için kombinasyon oluşturun</h2><div className="small muted">Odayı, modeli ve porseleni seçin. Beğendiğiniz kombinasyonu hesabınıza kaydedin veya doğrudan talep oluşturun.</div></div>
 
     <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div>
 
     <div className={`designPreview material-${material.id} room-${room.id}`}>
-      <div className="previewBadge">CANLI TASLAK</div>
-      <div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div>
+      <div className="previewBadge">ÖZEL ÖN İZLEME</div>
+      {realPreview?.preview_image_url ? <img className="realPreviewImage" src={realPreview.preview_image_url} alt={`${room.title} ${model} ${material.name}`} /> : <><div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div></>}
       <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{model}</strong><div className="small">{material.name}</div></div>
     </div>
 
-    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setSaved(false); setRequestNo('') }}>{m}</button>)}</div></div>
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setSaved(false); setRequestNo('') }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo('') }}>{m}</button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo('') }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
 
-    <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" className={saved ? 'miniSave saved' : 'miniSave'} onClick={() => setSaved(!saved)}>{saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
+    <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
+
+    {favorites.length > 0 && <div className="card savedDesignsCard"><div className="sectionRow"><div><div className="eyebrow gold">KAYDETTİKLERİM</div><strong>Beğendiğiniz tasarımlar</strong></div><span className="countPill">{favorites.length}</span></div><div className="savedDesignList">{favorites.map(f => <button key={f.id} type="button" onClick={() => openFavorite(f)}><span className="savedMiniVisual">MP</span><span><strong>{f.room} • {f.design_name}</strong><small>{f.material_name}</small></span><b>›</b></button>)}</div></div>}
 
     <div className="card projectLeadCard">
       <div className="eyebrow gold">PROJENİZİ BAŞLATALIM</div>
-      <strong>Bu tasarımı evinizde değerlendirelim</strong>
+      <strong>Bu seçimi evinizde değerlendirelim</strong>
       <div className="small muted">Talebiniz daire bilgilerinizle birlikte Master Porcelenta ekibine iletilir. Tekrar adres veya telefon girmeniz gerekmez.</div>
       <div><label className="label">Talep türü</label><select className="input" value={requestType} onChange={e => setRequestType(e.target.value as typeof requestType)}>{PROJECT_REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}</select></div>
       <div><label className="label">Notunuz <span className="muted">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Örn: Ada tezgahı için yerinde ölçü ve fiyat istiyorum." /></div>
       {requestMsg && <div className="errorBox">{requestMsg}</div>}
-      {requestNo && <div className="successBox"><strong>Talebiniz alındı.</strong><div className="small">Proje talep numaranız: {requestNo}</div></div>}
-      <button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? 'Talep oluşturuluyor…' : 'Keşif Talebi Oluştur'}</button>
+      {requestNo && <div className="successBox"><strong>{requestUi.success}</strong><div className="small">Talep numaranız: {requestNo}</div></div>}
+      <button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? requestUi.busy : requestUi.button}</button>
     </div>
-
-    <div className="card studioNote"><strong>Gerçek render aşaması</strong><div className="small muted spaceTop">Daire fotoğrafları ve gerçek porselen görselleri geldiğinde bu alanları birebir projeye dönüştüreceğiz. Yeni model veya taş eklemek için sistemi yeniden kurmak gerekmeyecek.</div></div>
   </>
 }
 
-function ServiceTab({ residence, sessionToken }: { residence: Residence; sessionToken: string }) {
+function RequestsTab({ portal, loading, onRefresh }: { portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
+  const [kind, setKind] = useState<'all' | 'service' | 'project'>('all')
+  const all = [
+    ...portal.service_requests.map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: x.attachments || [] })),
+    ...portal.project_requests.map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: [] as ServiceAttachment[] })),
+  ].filter(x => kind === 'all' || x.type === kind).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+
+  return <div className="stack"><div><div className="eyebrow gold">TALEPLERİM</div><h2 className="welcome">İşlemlerinizi takip edin</h2><div className="small muted">Servis, keşif ve teklif taleplerinizin güncel durumunu burada görebilirsiniz.</div></div>
+    <div className="requestFilters"><button className={kind === 'all' ? 'active' : ''} onClick={() => setKind('all')}>Tümü</button><button className={kind === 'service' ? 'active' : ''} onClick={() => setKind('service')}>Servis</button><button className={kind === 'project' ? 'active' : ''} onClick={() => setKind('project')}>Proje / Teklif</button><button className="refreshRequests" onClick={() => onRefresh()}>↻</button></div>
+    {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
+  </div>
+}
+
+function ServiceTab({ residence, sessionToken, onCreated }: { residence: Residence; sessionToken: string; onCreated: () => Promise<void> }) {
   const [product, setProduct] = useState('')
   const [issue, setIssue] = useState('')
   const [description, setDescription] = useState('')
+  const [photos, setPhotos] = useState<ServicePhoto[]>([])
   const [msg, setMsg] = useState('')
   const [ticket, setTicket] = useState('')
   const [busy, setBusy] = useState(false)
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  async function selectPhotos(files: FileList | null) {
+    if (!files?.length) return
+    setMsg('')
+    const remaining = Math.max(0, 3 - photos.length)
+    if (!remaining) return setMsg('En fazla 3 fotoğraf ekleyebilirsiniz.')
+    setPhotoBusy(true)
+    try {
+      const selected = Array.from(files).slice(0, remaining)
+      const compressed: ServicePhoto[] = []
+      for (const file of selected) compressed.push(await compressServicePhoto(file))
+      setPhotos(prev => [...prev, ...compressed].slice(0, 3))
+      if (files.length > remaining) setMsg('En fazla 3 fotoğraf eklenebilir; ilk fotoğraflar seçildi.')
+    } catch { setMsg('Fotoğraf hazırlanamadı. JPG, PNG veya telefonunuzun normal kamera fotoğrafını deneyin.') }
+    finally { setPhotoBusy(false) }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setMsg(''); setTicket('')
     if (!product || !issue || description.trim().length < 5) return setMsg('Ürün, talep türü ve kısa açıklamayı doldurun.')
     setBusy(true)
     try {
-      const data = await gateway({ action: 'service_create', session_token: sessionToken, residence_id: residence.id, product, issue_type: issue, description: description.trim() })
-      setTicket(data.ticket.ticket_no)
-      setProduct(''); setIssue(''); setDescription('')
-    } catch {
-      setMsg('Servis kaydı oluşturulamadı. Lütfen tekrar deneyin.')
+      const data = await gateway({ action: 'service_create', session_token: sessionToken, residence_id: residence.id, product, issue_type: issue, description: description.trim(), photos })
+      setTicket(data.ticket.ticket_no); setProduct(''); setIssue(''); setDescription(''); setPhotos([]); await onCreated()
+    } catch (err) {
+      const code = err instanceof Error ? err.message : ''
+      if (code === 'service_photo_invalid') setMsg('Fotoğraflardan biri uygun formatta değil veya çok büyük. Lütfen tekrar seçin.')
+      else setMsg('Servis kaydı oluşturulamadı. Lütfen tekrar deneyin.')
     } finally { setBusy(false) }
   }
 
   return <form className="stack" onSubmit={submit}>
-    <div><div className="eyebrow gold">SERVİS MERKEZİ</div><h2 className="welcome">Nasıl yardımcı olabiliriz?</h2><div className="small muted">Talebinizi seçin; kayıt teknik değerlendirmeye alınsın.</div></div>
+    <div><div className="eyebrow gold">SERVİS MERKEZİ</div><h2 className="welcome">Nasıl yardımcı olabiliriz?</h2><div className="small muted">Sorunu anlatın ve isterseniz fotoğraf ekleyin; kayıt teknik değerlendirmeye alınsın.</div></div>
     <div className="selectedResidence"><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div>
-    <div className="serviceGuide">
-      <div><strong>Garanti kapsamında</strong><div className="coveragePills compact"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div></div>
-      <div className="small muted">Darbe, tesisat / tadilat müdahaleleri, üçüncü kişi işlemleri ve kimyasal / aşındırıcı ürün kaynaklı hasarlar garanti dışında değerlendirilir.</div>
-    </div>
+    <div className="serviceGuide"><div><strong>Garanti kapsamında</strong><div className="coveragePills compact"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div></div><div className="small muted">Darbe, tesisat / tadilat müdahaleleri, üçüncü kişi işlemleri ve kimyasal / aşındırıcı ürün kaynaklı hasarlar garanti dışında değerlendirilir.</div></div>
     <div><label className="label">Ürün</label><select className="input" value={product} onChange={e => setProduct(e.target.value)}><option value="">Seçin</option>{SERVICE_PRODUCTS.map(item => <option key={item}>{item}</option>)}</select></div>
     <div><label className="label">Talep türü</label><select className="input" value={issue} onChange={e => setIssue(e.target.value)}><option value="">Seçin</option>{SERVICE_ISSUES.map(item => <option key={item}>{item}</option>)}</select></div>
     <div><label className="label">Açıklama</label><textarea className="input textarea" rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Sorunu kısaca anlatın. Örn: lavabo altından su sızıntısı var." /></div>
+    <div className="photoUploadBox"><div><label className="label">Fotoğraf <span className="optionalText">(isteğe bağlı • en fazla 3)</span></label><div className="small muted">Sorunu gösteren fotoğraflar teknik değerlendirmeyi hızlandırır.</div></div><label className="photoPickBtn">{photoBusy ? 'Fotoğraf hazırlanıyor…' : '+ Fotoğraf Ekle'}<input type="file" accept="image/*" multiple disabled={photoBusy || photos.length >= 3} onChange={e => { selectPhotos(e.currentTarget.files); e.currentTarget.value = '' }} /></label>{photos.length > 0 && <div className="photoPreviewGrid">{photos.map((p, i) => <div key={`${p.name}-${i}`}><img src={p.data_url} alt={`Seçilen fotoğraf ${i + 1}`} /><button type="button" onClick={() => setPhotos(prev => prev.filter((_, idx) => idx !== i))}>×</button></div>)}</div>}</div>
     {msg && <div className="errorBox">{msg}</div>}
-    {ticket && <div className="successBox"><strong>Servis kaydınız alındı.</strong><div className="small">Talep numaranız: {ticket}</div></div>}
-    <button className="btn dark" disabled={busy} type="submit">{busy ? 'Kaydediliyor…' : 'Servis Kaydını Oluştur'}</button>
+    {ticket && <div className="successBox"><strong>Servis kaydınız alındı.</strong><div className="small">Talep numaranız: {ticket} • Durumunu “Taleplerim” bölümünden takip edebilirsiniz.</div></div>}
+    <button className="btn dark" disabled={busy || photoBusy} type="submit">{busy ? 'Kaydediliyor…' : 'Servis Kaydını Oluştur'}</button>
     <div className="card careMini"><strong>Porselen bakım notu</strong><div className="small muted spaceTop">Günlük temizlik için yumuşak, nemli bez yeterlidir. Güçlü kimyasallar ve aşındırıcı ürünlere ihtiyaç yoktur.</div></div>
   </form>
 }
