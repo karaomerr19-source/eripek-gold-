@@ -26,6 +26,7 @@ type PortalData = { service_requests: ServiceRequestItem[]; project_requests: Pr
 type ServicePhoto = { name: string; data_url: string }
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
+const ADD_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_add_residence'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
 const ACCOUNT_CACHE_KEY = 'eripek_gold_account'
@@ -143,6 +144,24 @@ async function gateway(body: Record<string, unknown>) {
   return data
 }
 
+async function sha256Hex(value: string) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest)).map(v => v.toString(16).padStart(2, '0')).join('')
+}
+
+async function addResidenceToAccount(sessionToken: string, block: string, floor: string, unitNo: string) {
+  const res = await fetch(ADD_RESIDENCE_RPC, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}` },
+    body: JSON.stringify({ p_session_hash: await sha256Hex(sessionToken), p_block: block, p_floor: floor, p_unit_no: unitNo }),
+    cache: 'no-store',
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error('residence_add_failed')
+  if (data?.result !== 'ok' && data?.result !== 'already_linked') throw new Error(data?.result || 'residence_add_failed')
+  return data
+}
+
 function unitNumber(unit: string) {
   return Number(unit.replace(/\D/g, '')) || 0
 }
@@ -169,11 +188,11 @@ function readRememberedSession() {
   return localStorage.getItem(SESSION_KEY) || getCookie(SESSION_COOKIE_KEY)
 }
 
-function cacheAccount(customer: Customer, residence: Residence) {
-  localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify({ customer, residence }))
+function cacheAccount(customer: Customer, residence: Residence, residences: Residence[] = [residence]) {
+  localStorage.setItem(ACCOUNT_CACHE_KEY, JSON.stringify({ customer, residence, residences }))
 }
 
-function readCachedAccount(): { customer: Customer; residence: Residence } | null {
+function readCachedAccount(): { customer: Customer; residence: Residence; residences?: Residence[] } | null {
   try {
     const raw = localStorage.getItem(ACCOUNT_CACHE_KEY)
     if (!raw) return null
@@ -223,6 +242,7 @@ export default function Home() {
   const [catalog, setCatalog] = useState<Residence[]>([])
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [residence, setResidence] = useState<Residence | null>(null)
+  const [residences, setResidences] = useState<Residence[]>([])
   const [sessionToken, setSessionToken] = useState('')
 
   useEffect(() => {
@@ -238,6 +258,7 @@ export default function Home() {
           rememberSession(saved)
           setCustomer(cached.customer)
           setResidence(cached.residence)
+          setResidences(cached.residences?.length ? cached.residences : [cached.residence])
           setSessionToken(saved)
           setStage('dashboard')
         }
@@ -246,11 +267,13 @@ export default function Home() {
           try {
             const session: SessionResponse = await gateway({ action: 'session', session_token: saved })
             if (alive && session.customer && session.residences?.length) {
-              const activeResidence = session.residences[0]
+              const cachedId = cached?.residence?.id
+              const activeResidence = session.residences.find(r => r.id && r.id === cachedId) || session.residences[0]
               rememberSession(saved)
-              cacheAccount(session.customer, activeResidence)
+              cacheAccount(session.customer, activeResidence, session.residences)
               setCustomer(session.customer)
               setResidence(activeResidence)
+              setResidences(session.residences)
               setSessionToken(saved)
               setStage('dashboard')
               return
@@ -282,13 +305,39 @@ export default function Home() {
     }
   }, [])
 
+  async function syncResidences(token: string, preferredId?: string) {
+    const session: SessionResponse = await gateway({ action: 'session', session_token: token })
+    if (!session.customer || !session.residences?.length) return
+    const active = session.residences.find(r => r.id === preferredId) || session.residences[0]
+    setCustomer(session.customer)
+    setResidences(session.residences)
+    setResidence(active)
+    cacheAccount(session.customer, active, session.residences)
+  }
+
+  function selectResidence(next: Residence) {
+    if (!customer) return
+    setResidence(next)
+    cacheAccount(customer, next, residences)
+  }
+
   function loggedIn(data: any) {
     rememberSession(data.session_token)
-    cacheAccount(data.customer, data.residence)
+    const initialResidence = data.residence || data.residences?.[0]
+    const initialResidences = data.residences?.length ? data.residences : (initialResidence ? [initialResidence] : [])
     setSessionToken(data.session_token)
     setCustomer(data.customer)
-    setResidence(data.residence)
+    if (initialResidence) setResidence(initialResidence)
+    setResidences(initialResidences)
+    if (initialResidence) cacheAccount(data.customer, initialResidence, initialResidences)
     setStage('dashboard')
+    syncResidences(data.session_token, initialResidence?.id).catch(() => {})
+  }
+
+  async function addedResidence(data: any) {
+    const token = data.session_token || sessionToken
+    if (data.session_token) { rememberSession(data.session_token); setSessionToken(data.session_token) }
+    await syncResidences(token, data.residence?.id)
   }
 
   function resetDevice() {
@@ -305,7 +354,7 @@ export default function Home() {
   }
 
   if (stage === 'dashboard' && customer && residence) {
-    return <Shell><Dashboard customer={customer} residence={residence} sessionToken={sessionToken} onReset={resetDevice} /></Shell>
+    return <Shell><Dashboard customer={customer} residence={residence} residences={residences.length ? residences : [residence]} sessionToken={sessionToken} onResidenceChange={selectResidence} onResidenceAdded={addedResidence} onReset={resetDevice} /></Shell>
   }
 
   return <Shell><Register residences={catalog} onSuccess={loggedIn} /></Shell>
@@ -526,11 +575,12 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
       {msg && <div className="errorBox">{msg}</div>}
       <button className="btn primary" disabled={busy} type="submit">{busy ? 'Hesabınız hazırlanıyor…' : 'Dairemi Tanımla'}</button>
       <div className="privacyLine">Tek kayıt <span>•</span> Her cihazdan giriş <span>•</span> Uygulama indirme yok</div>
+      <PrivacyNotice />
     </>}
   </form>
 }
 
-function Dashboard({ customer, residence, sessionToken, onReset }: { customer: Customer; residence: Residence; sessionToken: string; onReset: () => void }) {
+function Dashboard({ customer, residence, residences, sessionToken, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [tab, setTab] = useState<'home' | 'discover' | 'requests' | 'service' | 'account' | 'products'>('home')
   const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], support: null })
   const [portalLoading, setPortalLoading] = useState(true)
@@ -553,16 +603,20 @@ function Dashboard({ customer, residence, sessionToken, onReset }: { customer: C
 
   return <>
     <div className="screen stack dashboardScreen">
-      <div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>
+      <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
       {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => setTab('service')} onDiscover={() => setTab('discover')} onRequests={() => setTab('requests')} onProducts={() => setTab('products')} />}
       {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} studioVariants={portal.studio_variants} onRefresh={refreshPortal} />}
-      {tab === 'requests' && <RequestsTab portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
+      {tab === 'requests' && <RequestsTab residence={residence} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
-      {tab === 'account' && <AccountTab customer={customer} residence={residence} sessionToken={sessionToken} support={portal.support || null} productCount={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length} onProducts={() => setTab('products')} onReset={onReset} />}
+      {tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length} onProducts={() => setTab('products')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
       {tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onBack={() => setTab('account')} onService={() => setTab('service')} />}
     </div>
     <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' || tab === 'products' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
   </>
+}
+
+function ResidenceSwitcher({ residences, residence, onChange }: { residences: Residence[]; residence: Residence; onChange: (residence: Residence) => void }) {
+  return <details className="residenceSwitcher"><summary><span className="small muted">Aktif daire</span><strong>{residence.block}-{residence.unit_no}</strong><b>⌄</b></summary><div className="residenceSwitcherMenu">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={e => { onChange(r); const d=(e.currentTarget.closest('details') as HTMLDetailsElement | null); if(d)d.open=false }}><span><strong>{r.block} Blok • Daire {r.unit_no}</strong><small>{r.floor}. Kat</small></span>{r.id === residence.id && <em>✓</em>}</button>)}</div></details>
 }
 
 function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRequests, onProducts }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onRequests: () => void; onProducts: () => void }) {
@@ -570,8 +624,8 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRe
   const warrantyEnd = warrantyEndDate(residence.delivery_date, months)
   const products = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)
   const recent = [
-    ...portal.service_requests.map(x => ({ kind: 'Servis', no: x.ticket_no, status: SERVICE_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
-    ...portal.project_requests.map(x => ({ kind: x.request_type || 'Proje', no: x.request_no, status: PROJECT_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
+    ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ kind: 'Servis', no: x.ticket_no, status: SERVICE_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
+    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ kind: x.request_type || 'Proje', no: x.request_no, status: PROJECT_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
   ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 2)
   return <>
     <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
@@ -712,14 +766,14 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   </>
 }
 
-function RequestsTab({ portal, loading, onRefresh }: { portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
+function RequestsTab({ residence, portal, loading, onRefresh }: { residence: Residence; portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
   const [kind, setKind] = useState<'all' | 'service' | 'project'>('all')
   const all = [
-    ...portal.service_requests.map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: x.attachments || [], quote_amount: null as number | null, quote_note: '', quote_valid_until: null as string | null })),
-    ...portal.project_requests.map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null })),
+    ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: x.attachments || [], quote_amount: null as number | null, quote_note: '', quote_valid_until: null as string | null })),
+    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null })),
   ].filter(x => kind === 'all' || x.type === kind).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
 
-  return <div className="stack"><div><div className="eyebrow gold">TALEPLERİM</div><h2 className="welcome">İşlemlerinizi takip edin</h2><div className="small muted">Servis, keşif ve teklif taleplerinizin güncel durumunu burada görebilirsiniz.</div></div>
+  return <div className="stack"><div><div className="eyebrow gold">TALEPLERİM</div><h2 className="welcome">İşlemlerinizi takip edin</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no} için servis, keşif ve teklif talepleriniz.</div></div>
     <div className="requestFilters"><button className={kind === 'all' ? 'active' : ''} onClick={() => setKind('all')}>Tümü</button><button className={kind === 'service' ? 'active' : ''} onClick={() => setKind('service')}>Servis</button><button className={kind === 'project' ? 'active' : ''} onClick={() => setKind('project')}>Proje / Teklif</button><button className="refreshRequests" onClick={() => onRefresh()}>↻</button></div>
     {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}{x.type === 'project' && x.quote_amount ? <div className="quoteCustomerBox"><div className="small muted">Master Porcelenta fiyat teklifi</div><strong>{moneyTR(x.quote_amount)}</strong>{x.quote_note && <div className="small">{x.quote_note}</div>}{x.quote_valid_until && <div className="small muted">Geçerlilik: {formatDateTR(x.quote_valid_until)}</div>}</div> : null}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
   </div>
@@ -780,13 +834,37 @@ function ServiceTab({ residence, sessionToken, installedProducts, onCreated }: {
   </form>
 }
 
-function AccountTab({ customer, residence, sessionToken, support, productCount, onProducts, onReset }: { customer: Customer; residence: Residence; sessionToken: string; support: SupportInfo | null; productCount: number; onProducts: () => void; onReset: () => void }) {
+function AccountTab({ customer, residence, residences, sessionToken, support, productCount, onProducts, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; support: SupportInfo | null; productCount: number; onProducts: () => void; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [email, setEmail] = useState(customer.email || '')
   const [pin, setPin] = useState('')
   const [pinAgain, setPinAgain] = useState('')
   const [msg, setMsg] = useState('')
   const [ok, setOk] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [addBlock, setAddBlock] = useState('')
+  const [addFloor, setAddFloor] = useState('')
+  const [addUnit, setAddUnit] = useState('')
+  const [addMsg, setAddMsg] = useState('')
+  const [addOk, setAddOk] = useState(false)
+  const [addBusy, setAddBusy] = useState(false)
+  const floorUnits = addFloor ? ({ '1':['1','2','3','4'], '2':['5','6','7','8'], '3':['9','10','11','12'], '4':['13','14','15','16'], '5':['17','18','19','20'], '6':['21','22','23','24'], '7':['25'] } as Record<string,string[]>)[addFloor] || [] : []
+
+  async function addResidence(e: FormEvent) {
+    e.preventDefault(); setAddMsg(''); setAddOk(false)
+    if (!addBlock || !addFloor || !addUnit) return setAddMsg('Blok, kat ve daire bilgilerini seçin.')
+    setAddBusy(true)
+    try {
+      const data = await addResidenceToAccount(sessionToken, addBlock, addFloor, addUnit)
+      await onResidenceAdded({ residence: { id: data.residence_id } })
+      setAddOk(true); setAddBlock(''); setAddFloor(''); setAddUnit('')
+    } catch (err) {
+      const code = err instanceof Error ? err.message : ''
+      if (code === 'invalid_session') setAddMsg('Oturumunuz sona ermiş. Güvenli çıkış yapıp yeniden giriş yapın.')
+      else if (code === 'residence_already_claimed') setAddMsg('Bu daire başka bir hesaba tanımlanmış veya daha önce aktive edilmiş. Master Porcelenta ile iletişime geçin.')
+      else if (code === 'residence_not_found' || code === 'invalid_residence') setAddMsg('Daire bilgilerini kontrol edin.')
+      else setAddMsg('Daire hesabınıza eklenemedi. Bilgileri kontrol edip tekrar deneyin.')
+    } finally { setAddBusy(false) }
+  }
 
   async function saveLogin(e: FormEvent) {
     e.preventDefault(); setMsg(''); setOk(false)
@@ -804,6 +882,7 @@ function AccountTab({ customer, residence, sessionToken, support, productCount, 
   return <>
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
     <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div>{customer.email && <div><div className="small muted">E-posta</div><strong>{customer.email}</strong></div>}<div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
+    <div className="card residencesCard"><div className="residencesCardHead"><div><div className="eyebrow gold">DAİRELERİM</div><strong>{residences.length} kayıtlı konut</strong><div className="small muted">Daire değiştirdiğinizde ürün, garanti, servis ve talepler o konuta göre gösterilir.</div></div></div><div className="residenceList">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={() => onResidenceChange(r)}><span><b>{r.block} Blok • Daire {r.unit_no}</b><small>{r.floor}. Kat</small></span><em>{r.id === residence.id ? 'Aktif' : 'Seç'}</em></button>)}</div><details className="addResidenceDetails"><summary>+ Başka dairem var</summary><form className="addResidenceForm" onSubmit={addResidence}><div className="grid3"><select className="input" value={addBlock} onChange={e => setAddBlock(e.target.value)}><option value="">Blok</option>{['A','B','C','D'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addFloor} onChange={e => { setAddFloor(e.target.value); setAddUnit('') }}><option value="">Kat</option>{['1','2','3','4','5','6','7'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addUnit} onChange={e => setAddUnit(e.target.value)} disabled={!addFloor}><option value="">Daire</option>{floorUnits.map(x => <option key={x}>{x}</option>)}</select></div><div className="small muted">Bu işlem seçtiğiniz konutu mevcut Master Porcelenta hesabınıza bağlar. Daire başka bir hesaba tanımlıysa işlem yapılmaz.</div>{addMsg && <div className="errorBox">{addMsg}</div>}{addOk && <div className="successBox">Daire hesabınıza eklendi ve aktif konut olarak seçildi.</div>}<button className="btn dark" disabled={addBusy} type="submit">{addBusy ? 'Ekleniyor…' : 'Daireyi Hesabıma Ekle'}</button></form></details></div>
     <button type="button" className="card accountProductsLink" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{productCount} kayıtlı uygulama</strong><div className="small muted">Ölçü, montaj ve garanti detaylarını görüntüleyin</div></div><b>›</b></button>
     <form className="card accountLoginSetup" onSubmit={saveLogin}>
       <div><div className="eyebrow gold">FARKLI CİHAZDAN GİRİŞ</div><strong>Giriş bilgilerinizi yönetin</strong><div className="small muted spaceTop">Telefon numaranız her zaman kullanılabilir. İsterseniz e-posta ekleyin ve 6 haneli giriş kodunuzu belirleyin veya değiştirin.</div></div>
@@ -813,8 +892,23 @@ function AccountTab({ customer, residence, sessionToken, support, productCount, 
       <button className="btn dark" type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Giriş Bilgilerimi Kaydet'}</button>
     </form>
     {support && <div className="card supportCard"><div><div className="eyebrow gold">MÜŞTERİ DESTEĞİ</div><strong>Master Porcelenta ile iletişim</strong></div><div className="supportActions">{support.phone && <a href={`tel:${support.phone.replace(/\D/g, '')}`}><span>Telefon</span><strong>{support.phone}</strong>{support.contact_name && <small>{support.contact_name}</small>}</a>}{support.whatsapp && <a href={`https://wa.me/90${support.whatsapp.replace(/\D/g, '').replace(/^0/, '')}`} target="_blank" rel="noreferrer"><span>WhatsApp</span><strong>{support.whatsapp}</strong><small>Master Porcelenta</small></a>}{support.email && <a href={`mailto:${support.email}`}><span>E-posta</span><strong>{support.email}</strong></a>}</div>{support.address && <div className="supportAddress small muted">İşletme adresi: {support.address}</div>}</div>}
+    <PrivacyNotice />
     <button className="btn ghost" onClick={async()=>{try{await gateway({action:'customer_logout',session_token:sessionToken})}catch{}onReset()}}>Güvenli çıkış yap</button>
   </>
+}
+
+function PrivacyNotice() {
+  return <details className="privacyNotice">
+    <summary>KVKK Aydınlatma Metni <span>›</span></summary>
+    <div className="privacyNoticeBody">
+      <p><strong>Veri sorumlusu:</strong> Master Porcelenta, TPAO BLV NO: 75/A Batman/Merkez.</p>
+      <p>Eripek Gold portalında ad-soyad, telefon, isteğe bağlı e-posta, konut bilgisi, ürün/garanti kayıtları, servis ve proje/teklif talepleri ile servis için yüklediğiniz ürün/hasar fotoğrafları; hesabınızın oluşturulması, garanti bilgilerinin sunulması, servis ve teklif süreçlerinin yürütülmesi, sizinle iletişim kurulması ve portal güvenliğinin sağlanması amaçlarıyla işlenir.</p>
+      <p>Veriler elektronik ortamda, tarafınızca girilen bilgiler ve portal kullanımı yoluyla elde edilir; ilgili süreç bakımından 6698 sayılı Kanun'un 5. maddesindeki sözleşmenin kurulması veya ifasıyla doğrudan ilgili olma, veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi ve temel haklarınıza zarar vermemek kaydıyla meşru menfaat işleme şartlarına dayanılarak işlenir.</p>
+      <p>Veriler, hizmetin yürütülmesi için gerektiği ölçüde teknik altyapı/barındırma hizmet sağlayıcılarıyla ve kanunen talep edilmesi halinde yetkili kamu kurum ve kuruluşlarıyla paylaşılabilir.</p>
+      <p>6698 sayılı Kanun'un 11. maddesi kapsamındaki haklarınıza ilişkin başvurularınızı <a href="mailto:masterporcelenta@gmail.com">masterporcelenta@gmail.com</a> adresine veya yukarıdaki işletme adresine iletebilirsiniz.</p>
+      <p className="privacyPhotoNote"><strong>Servis fotoğrafı:</strong> Yalnızca ürün ve hasar alanını paylaşın; kişi, kimlik belgesi veya özel belge görüntüsü yüklemeyin.</p>
+    </div>
+  </details>
 }
 
 function Room({ title, sub, onClick }: { title: string; sub: string; onClick?: () => void }) {

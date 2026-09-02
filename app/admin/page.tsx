@@ -42,7 +42,7 @@ export default function AdminPage(){
     setSession(token); setStage('dashboard')
   }
   useEffect(()=>{const saved=localStorage.getItem(ADMIN_SESSION_KEY); if(!saved){setStage('login');return} load(saved).catch(()=>{localStorage.removeItem(ADMIN_SESSION_KEY);setStage('login')})},[])
-  function logout(){localStorage.removeItem(ADMIN_SESSION_KEY);setSession('');setStage('login')}
+  async function logout(){try{if(session)await gateway({action:'admin_logout',admin_session:session})}catch{}localStorage.removeItem(ADMIN_SESSION_KEY);setSession('');setStage('login')}
 
   if(stage==='loading') return <AdminShell><div className="adminCenter"><div className="eyebrow gold">MASTER PORCELENTA</div><h1>Yönetim alanı hazırlanıyor…</h1></div></AdminShell>
   if(stage==='login') return <AdminShell><AdminLogin onSuccess={async token=>{localStorage.setItem(ADMIN_SESSION_KEY,token);await load(token)}} /></AdminShell>
@@ -51,7 +51,7 @@ export default function AdminPage(){
   const openProjects=data.project_requests.filter(x=>!['won','lost','cancelled'].includes(x.status)).length
   const pendingRecoveries=data.recovery_requests.filter(x=>x.status==='pending').length
   return <AdminShell>
-    <div className="adminHead"><div><div className="eyebrow gold">ERİPEK GOLD • YÖNETİM</div><h1>Müşteri Talepleri</h1><div className="small muted">Servis ve ek proje talepleri tek ekranda.</div></div><button className="adminLogout" onClick={logout}>Çıkış</button></div>
+    <div className="adminHead"><div><div className="eyebrow gold">ERİPEK GOLD • YÖNETİM</div><h1>Müşteri Talepleri</h1><div className="small muted">Servis ve ek proje talepleri tek ekranda.</div></div><button className="adminLogout" onClick={()=>void logout()}>Çıkış</button></div>
     <div className="adminStats"><div><span>{activeServices}</span><small>Açık servis</small></div><div><span>{openProjects}</span><small>Açık proje</small></div><div><span>{pendingRecoveries}</span><small>Kurtarma onayı</small></div><div><span>{data.service_requests.length+data.project_requests.length+data.recovery_requests.length}</span><small>Toplam kayıt</small></div></div>
     <div className="adminTabs"><button className={tab==='service'?'active':''} onClick={()=>setTab('service')}>Servis ({data.service_requests.length})</button><button className={tab==='project'?'active':''} onClick={()=>setTab('project')}>Proje / Keşif ({data.project_requests.length})</button><button className={tab==='recovery'?'active':''} onClick={()=>setTab('recovery')}>Hesap Kurtarma ({pendingRecoveries})</button></div>
     {msg&&<div className="successBox">{msg}</div>}
@@ -61,7 +61,7 @@ export default function AdminPage(){
 
 function AdminLogin({onSuccess}:{onSuccess:(token:string)=>Promise<void>}){
   const [code,setCode]=useState('');const [busy,setBusy]=useState(false);const [msg,setMsg]=useState('')
-  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setMsg('');try{const d=await gateway({action:'admin_login',code});await onSuccess(d.admin_session)}catch{setMsg('Yönetici erişim kodu hatalı.')}finally{setBusy(false)}}
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setMsg('');try{const d=await gateway({action:'admin_login',code});await onSuccess(d.admin_session)}catch(err){const reason=err instanceof Error?err.message:'';setMsg(reason==='admin_login_temporarily_locked'?'Çok fazla hatalı deneme yapıldı. Güvenlik için 15 dakika sonra tekrar deneyin.':'Yönetici erişim kodu hatalı.')}finally{setBusy(false)}}
   return <form className="adminLogin" onSubmit={submit}><img className="adminBrandLogo" src="/master-porcelenta-logo.png" alt="Master Porcelenta" /><div className="eyebrow gold">ERİPEK GOLD • YÖNETİM</div><h1>Eripek Gold Yönetim</h1><p>Servis ve proje taleplerine erişmek için yönetici kodunu girin.</p><input className="input" type="password" autoComplete="current-password" value={code} onChange={e=>setCode(e.target.value)} placeholder="Yönetici erişim kodu" />{msg&&<div className="errorBox">{msg}</div>}<button className="btn dark" disabled={busy}>{busy?'Giriş yapılıyor…':'Yönetim Alanına Gir'}</button></form>
 }
 
