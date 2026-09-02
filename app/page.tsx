@@ -531,7 +531,7 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
 }
 
 function Dashboard({ customer, residence, sessionToken, onReset }: { customer: Customer; residence: Residence; sessionToken: string; onReset: () => void }) {
-  const [tab, setTab] = useState<'home' | 'discover' | 'requests' | 'service' | 'account'>('home')
+  const [tab, setTab] = useState<'home' | 'discover' | 'requests' | 'service' | 'account' | 'products'>('home')
   const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], support: null })
   const [portalLoading, setPortalLoading] = useState(true)
 
@@ -554,17 +554,18 @@ function Dashboard({ customer, residence, sessionToken, onReset }: { customer: C
   return <>
     <div className="screen stack dashboardScreen">
       <div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>
-      {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => setTab('service')} onDiscover={() => setTab('discover')} onRequests={() => setTab('requests')} />}
+      {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => setTab('service')} onDiscover={() => setTab('discover')} onRequests={() => setTab('requests')} onProducts={() => setTab('products')} />}
       {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} studioVariants={portal.studio_variants} onRefresh={refreshPortal} />}
       {tab === 'requests' && <RequestsTab portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
-      {tab === 'account' && <AccountTab customer={customer} residence={residence} sessionToken={sessionToken} support={portal.support || null} onReset={onReset} />}
+      {tab === 'account' && <AccountTab customer={customer} residence={residence} sessionToken={sessionToken} support={portal.support || null} productCount={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length} onProducts={() => setTab('products')} onReset={onReset} />}
+      {tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onBack={() => setTab('account')} onService={() => setTab('service')} />}
     </div>
-    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
+    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' || tab === 'products' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
   </>
 }
 
-function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRequests }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onRequests: () => void }) {
+function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRequests, onProducts }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onRequests: () => void; onProducts: () => void }) {
   const months = residence.default_warranty_months || 12
   const warrantyEnd = warrantyEndDate(residence.delivery_date, months)
   const products = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)
@@ -579,10 +580,15 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRe
       <button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button>
     </div>
 
-    <div className="card productsCard">
-      <div className="sectionRow"><div><div className="eyebrow gold">ÜRÜNLERİM</div><strong>Evinizdeki Master Porcelenta uygulamaları</strong></div><span className="countPill">{products.length}</span></div>
-      {portalLoading ? <div className="small muted">Ürün kayıtları yükleniyor…</div> : products.length ? <div className="productList">{products.map(p => { const productMonths = p.warranty_months || months; return <div className="productItem" key={p.id}><div className="productIcon">MP</div><div><strong>{p.name}</strong><div className="small muted">{[p.location, p.dimensions].filter(Boolean).join(' • ') || p.category}</div><div className="productMeta"><span>Montaj: {formatDateTR(p.installed_at)}</span><span>Garanti: {p.installed_at ? warrantyEndDate(p.installed_at, productMonths) : 'Kayıt bekleniyor'}</span></div></div></div> })}</div> : <div className="emptySoft"><strong>Montaj kaydı bekleniyor</strong><div className="small muted">Lavabo, niş ve diğer uygulamalarınız sisteme işlendiğinde ürün bazlı garanti bilgileri burada yer alacak.</div></div>}
-    </div>
+    <button className="card productsSummaryCard" onClick={onProducts}>
+      <div className="productsSummaryIcon">MP</div>
+      <div className="productsSummaryBody">
+        <div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div>
+        <strong>{portalLoading ? 'Ürün kayıtları yükleniyor…' : products.length ? `${products.length} ürün kayıtlı` : 'Ürün kayıtlarınızı görüntüleyin'}</strong>
+        <div className="small muted">{residence.delivery_date ? `Garanti ${warrantyEnd} tarihine kadar` : 'Ürün, ölçü ve garanti detayları'}</div>
+      </div>
+      <div className="productsSummaryArrow">›</div>
+    </button>
 
     <button className="card latestRequestsCard" onClick={onRequests}><div className="sectionRow"><div><div className="eyebrow gold">TALEPLERİM</div><strong>Son işlemleriniz</strong></div><b>›</b></div>{portalLoading ? <div className="small muted">Talepler yükleniyor…</div> : recent.length ? <div className="latestRequestList">{recent.map(x => <div key={x.no}><span>{x.kind}</span><strong>{x.status}</strong><small>{x.no}</small></div>)}</div> : <div className="small muted">Henüz servis veya proje talebiniz bulunmuyor.</div>}</button>
 
@@ -595,6 +601,31 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRe
     </div>
     <div className="card careCard"><div className="careIcon">◌</div><div><strong>Kolay bakım</strong><div className="small muted spaceTop">Porselen yüzeylerin günlük temizliğinde yumuşak, nemli bir bez yeterlidir. Güçlü kimyasallar ve aşındırıcı temizlik ürünleri kullanmanıza gerek yoktur.</div></div></div>
     <div><div className="sectionTitle">Eviniz için fikirler</div><div className="grid2 roomGrid"><Room title="Mutfak" sub="Ada • Tezgah • Kahve Köşesi" onClick={onDiscover} /><Room title="Yatak Odası" sub="Başlık • Panel • LED" onClick={onDiscover} /></div></div>
+  </>
+}
+
+
+function ProductsTab({ residence, products, loading, onBack, onService }: { residence: Residence; products: InstalledProduct[]; loading: boolean; onBack: () => void; onService: () => void }) {
+  const months = residence.default_warranty_months || 12
+  const warrantyEnd = warrantyEndDate(residence.delivery_date, months)
+  return <>
+    <button type="button" className="subpageBack" onClick={onBack}>‹ Hesabım</button>
+    <div><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><h2 className="welcome">Evinizdeki uygulamalar</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>
+    <div className="card productWarrantySummary">
+      <div><div className="small muted">Kayıtlı ürün</div><strong>{products.length}</strong></div>
+      <div><div className="small muted">Garanti süresi</div><strong>{months} Ay</strong></div>
+      <div><div className="small muted">Garanti bitişi</div><strong>{residence.delivery_date ? warrantyEnd : 'Kayıt bekleniyor'}</strong></div>
+    </div>
+    {loading ? <div className="card"><div className="small muted">Ürün kayıtları yükleniyor…</div></div> : products.length ? <div className="productDetailList">{products.map(p => {
+      const productMonths = p.warranty_months || months
+      return <div className="card productDetailCard" key={p.id}>
+        <div className="productDetailTop"><div className="productIcon">MP</div><div><div className="small muted">{p.location || p.category}</div><strong>{p.name}</strong></div></div>
+        {p.dimensions && <div className="productDimension"><span>Ölçü</span><strong>{p.dimensions}</strong></div>}
+        <div className="productDetailMeta"><div><span>Montaj tarihi</span><strong>{formatDateTR(p.installed_at)}</strong></div><div><span>Garanti bitişi</span><strong>{p.installed_at ? warrantyEndDate(p.installed_at, productMonths) : 'Kayıt bekleniyor'}</strong></div></div>
+        <button type="button" className="productServiceLink" onClick={onService}>Bu ürün için servis talebi oluştur →</button>
+      </div>
+    })}</div> : <div className="emptySoft"><strong>Ürün kaydı bulunamadı</strong><div className="small muted">Uygulamalarınız sisteme işlendiğinde burada görüntülenecek.</div></div>}
+    <div className="card productWarrantyNote"><div className="eyebrow gold">GARANTİ NOTU</div><div className="small muted">Uygulama garantisi montaj tarihinden itibaren geçerlidir. Daire tesliminden önce şantiye faaliyetleri veya üçüncü kişiler nedeniyle oluşan kırılma ve çizilmeler müşteri kullanım hatası sayılmaz; Master Porcelenta uygulama garantisi yerine ilgili müteahhit / şantiye sorumluluğunda değerlendirilir.</div></div>
   </>
 }
 
@@ -749,7 +780,7 @@ function ServiceTab({ residence, sessionToken, installedProducts, onCreated }: {
   </form>
 }
 
-function AccountTab({ customer, residence, sessionToken, support, onReset }: { customer: Customer; residence: Residence; sessionToken: string; support: SupportInfo | null; onReset: () => void }) {
+function AccountTab({ customer, residence, sessionToken, support, productCount, onProducts, onReset }: { customer: Customer; residence: Residence; sessionToken: string; support: SupportInfo | null; productCount: number; onProducts: () => void; onReset: () => void }) {
   const [email, setEmail] = useState(customer.email || '')
   const [pin, setPin] = useState('')
   const [pinAgain, setPinAgain] = useState('')
@@ -773,6 +804,7 @@ function AccountTab({ customer, residence, sessionToken, support, onReset }: { c
   return <>
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
     <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div>{customer.email && <div><div className="small muted">E-posta</div><strong>{customer.email}</strong></div>}<div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
+    <button type="button" className="card accountProductsLink" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{productCount} kayıtlı uygulama</strong><div className="small muted">Ölçü, montaj ve garanti detaylarını görüntüleyin</div></div><b>›</b></button>
     <form className="card accountLoginSetup" onSubmit={saveLogin}>
       <div><div className="eyebrow gold">FARKLI CİHAZDAN GİRİŞ</div><strong>Giriş bilgilerinizi yönetin</strong><div className="small muted spaceTop">Telefon numaranız her zaman kullanılabilir. İsterseniz e-posta ekleyin ve 6 haneli giriş kodunuzu belirleyin veya değiştirin.</div></div>
       <div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="email" placeholder="ad@eposta.com" /></div>
