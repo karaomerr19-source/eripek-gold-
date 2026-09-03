@@ -723,6 +723,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const [requestMsg, setRequestMsg] = useState('')
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [slabZoom, setSlabZoom] = useState(false)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
@@ -731,6 +732,18 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const realPreview = studioVariants.find(v => v.room === room.title && (v.design_name === model || v.model_code === model) && v.material_name === material.name)
   const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
   const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
+
+  useEffect(() => {
+    if (!slabZoom) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSlabZoom(false) }
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [slabZoom])
 
   function chooseRoom(id: (typeof STUDIO_ROOMS)[number]['id']) {
     setRoomId(id); setModel(STUDIO_MODELS[id][0]); setRequestNo('')
@@ -781,7 +794,38 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
     <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo('') }}>{m}</button>)}</div></div>
     <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo('') }}>{m.slabImage ? <img className="materialRealThumb" src={m.slabImage} alt={`${m.name} gerçek porselen plaka`} loading="lazy" /> : <span className={`swatch material-${m.id}`}></span>}<span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
 
-    {material.slabImage && <div className="realSlabCard"><div className="realSlabVisual"><img src={material.slabImage} alt={`${material.name} gerçek T-ONE plaka görünümü`} /></div><div className="realSlabCopy"><div className="eyebrow gold">GERÇEK PLAKA GÖRÜNÜMÜ</div><strong>{material.slabMeta}</strong><div className="small muted">Kale’nin resmi ürün görselidir. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div></div></div>}
+    {material.slabImage && <>
+      <div className="realSlabCard">
+        <button type="button" className="realSlabVisual" onClick={() => setSlabZoom(true)} aria-label={`${material.name} gerçek plaka görselini büyüt`}>
+          <img src={material.slabImage} alt={`${material.name} gerçek T-ONE plaka görünümü`} />
+          <span className="slabZoomHint">⌕ Büyüt</span>
+        </button>
+        <div className="realSlabCopy">
+          <div className="eyebrow gold">GERÇEK PLAKA GÖRÜNÜMÜ</div>
+          <strong>{material.slabMeta}</strong>
+          <a className="kaleSourceLine" href="https://www.kale.com.tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-160x320-310101110925" target="_blank" rel="noreferrer" aria-label="Kale resmi Taj Mahal ürün sayfasını aç">
+            <span className="kaleWordmark">
+              <svg className="kaleCastleMark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z" /></svg>
+              <b>Kale</b>
+            </span>
+            <span>resmî ürün görseli</span><span aria-hidden="true">↗</span>
+          </a>
+          <div className="small muted">Görsele dokunarak plakayı büyük inceleyebilirsiniz. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div>
+        </div>
+      </div>
+      {slabZoom && <div className="slabLightbox" role="dialog" aria-modal="true" aria-label={`${material.name} plaka büyük görünümü`} onClick={() => setSlabZoom(false)}>
+        <div className="slabLightboxPanel" onClick={event => event.stopPropagation()}>
+          <button type="button" className="slabLightboxClose" onClick={() => setSlabZoom(false)} aria-label="Büyük görseli kapat">×</button>
+          <img src={material.slabImage} alt={`${material.name} gerçek T-ONE plaka büyük görünümü`} />
+          <div className="slabLightboxCaption">
+            <div><strong>{material.slabMeta}</strong><span>Gerçek plaka görünümü</span></div>
+            <a className="kaleSourceLine compact" href="https://www.kale.com.tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-160x320-310101110925" target="_blank" rel="noreferrer">
+              <span className="kaleWordmark"><svg className="kaleCastleMark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z" /></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span>
+            </a>
+          </div>
+        </div>
+      </div>}
+    </>}
 
     <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
 
