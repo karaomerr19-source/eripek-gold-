@@ -16,8 +16,8 @@ type Customer = { id?: string; full_name: string; phone: string; email?: string 
 type CatalogResponse = { project: { name: string; slug: string }; residences: Residence[] }
 type SessionResponse = { customer: Customer; residences: Residence[] }
 type ServiceAttachment = { storage_path?: string; mime_type?: string; signed_url?: string; created_at?: string }
-type ServiceRequestItem = { id?: string; ticket_no: string; status: string; issue_type: string; description?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string; attachments?: ServiceAttachment[] }
-type ProjectRequestItem = { request_no: string; status: string; request_type?: string | null; room?: string | null; design_name?: string | null; material_name?: string | null; notes?: string | null; quote_amount?: number | null; quote_currency?: string | null; quote_note?: string | null; quote_valid_until?: string | null; quoted_at?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string }
+type ServiceRequestItem = { id?: string; ticket_no: string; status: string; issue_type: string; description?: string | null; appointment_at?: string | null; admin_note?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string; attachments?: ServiceAttachment[] }
+type ProjectRequestItem = { request_no: string; status: string; request_type?: string | null; room?: string | null; design_name?: string | null; material_name?: string | null; notes?: string | null; appointment_at?: string | null; admin_note?: string | null; quote_amount?: number | null; quote_currency?: string | null; quote_note?: string | null; quote_valid_until?: string | null; quoted_at?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string }
 type InstalledProduct = { id: string; residence_id: string; product_code?: string | null; category: string; name: string; location?: string | null; dimensions?: string | null; installed_at?: string | null; warranty_months?: number | null; notes?: string | null; status?: string }
 type FavoriteItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; created_at?: string }
 type StudioVariant = { room?: string | null; design_name?: string | null; model_code?: string | null; material_name?: string | null; preview_image_url?: string | null }
@@ -27,6 +27,7 @@ type ServicePhoto = { name: string; data_url: string }
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
 const ADD_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_add_residence'
+const PLANNING_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_request_planning'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
 const ACCOUNT_CACHE_KEY = 'eripek_gold_account'
@@ -52,6 +53,18 @@ const STUDIO_MATERIALS = [
   { id: 'angela', name: 'Angela', note: 'Açık taş dokusu' },
   { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm' },
   { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast' },
+] as const
+
+const CURATED_PREVIEWS = [
+  {
+    id: 'eripek-kitchen-island-01',
+    roomId: 'kitchen',
+    model: 'Şelale Ada',
+    materialId: 'taj',
+    title: 'Mutfak & Ada Tezgâhı',
+    subtitle: 'Master Porcelenta • Eripek Gold',
+    image: '/eripek-kitchen-island-01.webp',
+  },
 ] as const
 
 
@@ -149,15 +162,15 @@ async function sha256Hex(value: string) {
   return Array.from(new Uint8Array(digest)).map(v => v.toString(16).padStart(2, '0')).join('')
 }
 
+async function rpcPost(url: string, body: Record<string, unknown>) {
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}` }, body: JSON.stringify(body), cache: 'no-store' })
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new Error('rpc_failed')
+  return data
+}
+
 async function addResidenceToAccount(sessionToken: string, block: string, floor: string, unitNo: string) {
-  const res = await fetch(ADD_RESIDENCE_RPC, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: PUBLIC_KEY, Authorization: `Bearer ${PUBLIC_KEY}` },
-    body: JSON.stringify({ p_session_hash: await sha256Hex(sessionToken), p_block: block, p_floor: floor, p_unit_no: unitNo }),
-    cache: 'no-store',
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error('residence_add_failed')
+  const data = await rpcPost(ADD_RESIDENCE_RPC, { p_session_hash: await sha256Hex(sessionToken), p_block: block, p_floor: floor, p_unit_no: unitNo })
   if (data?.result !== 'ok' && data?.result !== 'already_linked') throw new Error(data?.result || 'residence_add_failed')
   return data
 }
@@ -587,10 +600,15 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
 
   async function refreshPortal() {
     try {
-      const data = await gateway({ action: 'customer_portal', session_token: sessionToken })
+      const [data, planning] = await Promise.all([
+        gateway({ action: 'customer_portal', session_token: sessionToken }),
+        rpcPost(PLANNING_RPC, { p_session_hash: await sha256Hex(sessionToken) }).catch(() => null),
+      ])
+      const servicePlanning = new Map<string, any>((planning?.service_requests || []).map((x: any) => [x.ticket_no, x]))
+      const projectPlanning = new Map<string, any>((planning?.project_requests || []).map((x: any) => [x.request_no, x]))
       setPortal({
-        service_requests: data.service_requests || [],
-        project_requests: data.project_requests || [],
+        service_requests: (data.service_requests || []).map((x: ServiceRequestItem) => ({ ...x, ...(servicePlanning.get(x.ticket_no) || {}) })),
+        project_requests: (data.project_requests || []).map((x: ProjectRequestItem) => ({ ...x, ...(projectPlanning.get(x.request_no) || {}) })),
         installed_products: data.installed_products || [],
         favorites: data.favorites || [],
         studio_variants: data.studio_variants || [],
@@ -699,6 +717,8 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const requestUi = PROJECT_REQUEST_UI[requestType]
   const saved = favorites.some(f => f.residence_id === residence.id && f.room === room.title && f.design_name === model && f.material_name === material.name)
   const realPreview = studioVariants.find(v => v.room === room.title && (v.design_name === model || v.model_code === model) && v.material_name === material.name)
+  const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
+  const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
 
   function chooseRoom(id: (typeof STUDIO_ROOMS)[number]['id']) {
     setRoomId(id); setModel(STUDIO_MODELS[id][0]); setRequestNo('')
@@ -740,10 +760,10 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
 
     <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div>
 
-    <div className={`designPreview material-${material.id} room-${room.id}`}>
-      <div className="previewBadge">ÖZEL ÖN İZLEME</div>
-      {realPreview?.preview_image_url ? <img className="realPreviewImage" src={realPreview.preview_image_url} alt={`${room.title} ${model} ${material.name}`} /> : <><div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div></>}
-      <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{model}</strong><div className="small">{material.name}</div></div>
+    <div className={`designPreview material-${material.id} room-${room.id} ${curatedPreview ? 'curatedPreview' : ''}`}>
+      <div className="previewBadge">{curatedPreview ? 'ERİPEK GOLD • ÖZEL TASARIM' : 'ÖZEL ÖN İZLEME'}</div>
+      {previewImage ? <img className="realPreviewImage" src={previewImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} /> : <><div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div></>}
+      <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{curatedPreview?.title || model}</strong><div className="small">{curatedPreview?.subtitle || material.name}</div></div>
     </div>
 
     <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo('') }}>{m}</button>)}</div></div>
@@ -769,13 +789,13 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
 function RequestsTab({ residence, portal, loading, onRefresh }: { residence: Residence; portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
   const [kind, setKind] = useState<'all' | 'service' | 'project'>('all')
   const all = [
-    ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: x.attachments || [], quote_amount: null as number | null, quote_note: '', quote_valid_until: null as string | null })),
-    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null })),
+    ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, appointment_at: x.appointment_at || null, admin_note: x.admin_note || '', attachments: x.attachments || [], quote_amount: null as number | null, quote_note: '', quote_valid_until: null as string | null })),
+    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, appointment_at: x.appointment_at || null, admin_note: x.admin_note || '', attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null })),
   ].filter(x => kind === 'all' || x.type === kind).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
 
   return <div className="stack"><div><div className="eyebrow gold">TALEPLERİM</div><h2 className="welcome">İşlemlerinizi takip edin</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no} için servis, keşif ve teklif talepleriniz.</div></div>
     <div className="requestFilters"><button className={kind === 'all' ? 'active' : ''} onClick={() => setKind('all')}>Tümü</button><button className={kind === 'service' ? 'active' : ''} onClick={() => setKind('service')}>Servis</button><button className={kind === 'project' ? 'active' : ''} onClick={() => setKind('project')}>Proje / Teklif</button><button className="refreshRequests" onClick={() => onRefresh()}>↻</button></div>
-    {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}{x.type === 'project' && x.quote_amount ? <div className="quoteCustomerBox"><div className="small muted">Master Porcelenta fiyat teklifi</div><strong>{moneyTR(x.quote_amount)}</strong>{x.quote_note && <div className="small">{x.quote_note}</div>}{x.quote_valid_until && <div className="small muted">Geçerlilik: {formatDateTR(x.quote_valid_until)}</div>}</div> : null}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
+    {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}{x.appointment_at && <div className="requestAppointment"><span>Planlanan tarih</span><strong>{dateTimeTR(x.appointment_at)}</strong></div>}{x.admin_note && <div className="requestAdminNote"><span>Master Porcelenta notu</span><div>{x.admin_note}</div></div>}{x.type === 'project' && x.quote_amount ? <div className="quoteCustomerBox"><div className="small muted">Master Porcelenta fiyat teklifi</div><strong>{moneyTR(x.quote_amount)}</strong>{x.quote_note && <div className="small">{x.quote_note}</div>}{x.quote_valid_until && <div className="small muted">Geçerlilik: {formatDateTR(x.quote_valid_until)}</div>}</div> : null}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
   </div>
 }
 
