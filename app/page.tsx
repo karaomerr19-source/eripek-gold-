@@ -554,7 +554,13 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
   }
 
   return <form className="screen stack" onSubmit={submit}>
-    <div className="hero compactHero"><div className="heroText"><div className="eyebrow">ERİPEK GOLD</div><div className="heroTitle">Evinize özel dijital alan</div><div className="heroCopy">Garanti, servis ve porselen tasarımlar tek yerde.</div></div></div>
+    {mode === 'register' ? (
+      <div className="registrationCover" aria-label="Eripek Gold güvenli dijital hizmet alanı">
+        <img src="/eripek-gold-welcome-premium.webp" alt="Master Porcelenta Eripek Gold — garanti, servis ve özel tasarım" />
+      </div>
+    ) : (
+      <div className="hero compactHero"><div className="heroText"><div className="eyebrow">ERİPEK GOLD</div><div className="heroTitle">Evinize özel dijital alan</div><div className="heroCopy">Garanti, servis ve porselen tasarımlar tek yerde.</div></div></div>
+    )}
 
     <div className="accessSwitch" role="tablist" aria-label="Hesap girişi">
       <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setMsg('') }}>İlk kez kullanıyorum</button>

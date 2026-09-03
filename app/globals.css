@@ -63,3 +63,8 @@
 .designPreview.curatedPreview .previewCopy{left:18px;bottom:16px}
 .designPreview.curatedPreview .previewCopy strong{font-size:22px;max-width:280px}
 @media(max-width:520px){.designPreview.curatedPreview{aspect-ratio:4/3}.designPreview.curatedPreview .previewCopy strong{font-size:19px}}
+
+/* Premium first-registration welcome visual */
+.registrationCover{width:100%;border:1px solid #e2d6c4;border-radius:20px;overflow:hidden;background:#f4eee4;box-shadow:0 12px 30px rgba(72,55,31,.08)}
+.registrationCover img{display:block;width:100%;height:auto;aspect-ratio:2/3;object-fit:cover}
+@media(min-width:769px){.registrationCover{max-width:620px;margin:0 auto}.registrationCover img{aspect-ratio:2/3}}
