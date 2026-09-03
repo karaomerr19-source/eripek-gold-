@@ -1,0 +1,23 @@
+ERİPEK GOLD — TAM PROJE / FLORENCE KESİN SÜRÜM
+
+BU ZIP BİR HOTFIX DEĞİLDİR. PROJE KÖK DOSYALARININ TAMAMINI İÇERİR.
+
+İçerik kontrolü:
+- Taj Mahal: aktif
+- Crystallus 12 mm: aktif
+- Florence 12 mm parlak: aktif
+- Florence uygulama görseli: public/eripek-kitchen-florence-01.webp
+- Florence gerçek plaka: Kale resmi CDN
+- Florence ürün sayfası: Kale resmi ürün sayfası
+- Lightbox/büyütme: aktif
+- Kale rozeti: aktif
+- Logo, ilk kayıt kapağı, garanti, servis, teklifler, çoklu daire, KVKK ve admin özellikleri korunur.
+
+GitHub commit adı:
+Fix Florence final full release
+
+Yükleme sonrası kontrol:
+Keşfet > Mutfak > Porselen seçimi
+1/5 Taj Mahal
+2/5 Crystallus
+3/5 Florence
