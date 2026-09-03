@@ -1,0 +1,13 @@
+ERİPEK GOLD — FLORENCE FULL FIX
+
+Bu paket HOTFIX değildir; proje köküne komple uygulanır.
+
+1) ZIP'i bilgisayarda normal klasöre çıkar.
+2) İçeride görünen app, public, package.json, tsconfig.json ve diğer kök dosyaların TAMAMINI GitHub repo köküne yükle.
+3) "Replace / overwrite" gereken dosyaları değiştir.
+4) Commit: Fix Florence full release
+5) Vercel yeşil tikten sonra Keşfet > Mutfak > Porselen seçimi bölümünde:
+   1/5 Taj Mahal
+   2/5 Crystallus
+   3/5 Florence
+   görünmeli.
