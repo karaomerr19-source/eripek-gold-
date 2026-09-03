@@ -48,11 +48,17 @@ const STUDIO_MODELS: Record<string, string[]> = {
 }
 
 const STUDIO_MATERIALS = [
-  { id: 'taj', name: 'Taj Mahal', note: 'Sıcak bej damar' },
-  { id: 'florence', name: 'Florence', note: 'Krem • altın damar' },
-  { id: 'angela', name: 'Angela', note: 'Açık taş dokusu' },
-  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm' },
-  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast' },
+  {
+    id: 'taj',
+    name: 'Taj Mahal',
+    note: 'Sıcak bej damar',
+    slabImage: 'https://cdn.kale.com.tr/0/0/taj-mahal-parlak-kalesinterflex-porselen-plaka-162x323/379d53d5-6059-4b67-9608-4780d92c5331/650/2',
+    slabMeta: 'T-ONE • Taj Mahal • Parlak',
+  },
+  { id: 'florence', name: 'Florence', note: 'Krem • altın damar', slabImage: null, slabMeta: null },
+  { id: 'angela', name: 'Angela', note: 'Açık taş dokusu', slabImage: null, slabMeta: null },
+  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm', slabImage: null, slabMeta: null },
+  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast', slabImage: null, slabMeta: null },
 ] as const
 
 const CURATED_PREVIEWS = [
@@ -773,7 +779,9 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
     </div>
 
     <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo('') }}>{m}</button>)}</div></div>
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo('') }}><span className={`swatch material-${m.id}`}></span><span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo('') }}>{m.slabImage ? <img className="materialRealThumb" src={m.slabImage} alt={`${m.name} gerçek porselen plaka`} loading="lazy" /> : <span className={`swatch material-${m.id}`}></span>}<span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+
+    {material.slabImage && <div className="realSlabCard"><div className="realSlabVisual"><img src={material.slabImage} alt={`${material.name} gerçek T-ONE plaka görünümü`} /></div><div className="realSlabCopy"><div className="eyebrow gold">GERÇEK PLAKA GÖRÜNÜMÜ</div><strong>{material.slabMeta}</strong><div className="small muted">Kale’nin resmi ürün görselidir. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div></div></div>}
 
     <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
 
