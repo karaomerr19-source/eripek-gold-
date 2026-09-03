@@ -53,12 +53,20 @@ const STUDIO_MATERIALS = [
     name: 'Taj Mahal',
     note: 'Sıcak bej damar',
     slabImage: 'https://cdn.kale.com.tr/0/0/taj-mahal-parlak-kalesinterflex-porselen-plaka-162x323/379d53d5-6059-4b67-9608-4780d92c5331/650/2',
-    slabMeta: 'T-ONE • Taj Mahal • Parlak',
+    slabMeta: 'T-ONE • Taj Mahal • Parlak • 12 mm',
+    productUrl: 'https://www.kale.com.tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-160x320-310101110925',
   },
-  { id: 'florence', name: 'Florence', note: 'Krem • altın damar', slabImage: null, slabMeta: null },
-  { id: 'angela', name: 'Angela', note: 'Açık taş dokusu', slabImage: null, slabMeta: null },
-  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm', slabImage: null, slabMeta: null },
-  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast', slabImage: null, slabMeta: null },
+  {
+    id: 'crystallus',
+    name: 'Crystallus',
+    note: 'Kristalimsi bej • parlak',
+    slabImage: 'https://cdn.kale.com.tr/0/0/crystallus-parlak-kalesinterflex-porselen-plaka-162x323/cb8798ec-2269-4c5a-9da4-c4d8211cc268/650/2',
+    slabMeta: 'T-ONE • Crystallus • Parlak • 12 mm',
+    productUrl: 'https://www.kale.com.tr/crystallus-parlak-kalesinterflex-porselen-plaka-162x323-310101109350',
+  },
+  { id: 'angela', name: 'Angela', note: 'Açık taş dokusu', slabImage: null, slabMeta: null, productUrl: null },
+  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm', slabImage: null, slabMeta: null, productUrl: null },
+  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast', slabImage: null, slabMeta: null, productUrl: null },
 ] as const
 
 const CURATED_PREVIEWS = [
@@ -68,8 +76,17 @@ const CURATED_PREVIEWS = [
     model: 'Şelale Ada',
     materialId: 'taj',
     title: 'Mutfak & Ada Tezgâhı',
-    subtitle: 'Master Porcelenta • Eripek Gold',
+    subtitle: 'T-ONE • Taj Mahal • 12 mm',
     image: '/eripek-kitchen-island-01.webp',
+  },
+  {
+    id: 'eripek-kitchen-crystallus-01',
+    roomId: 'kitchen',
+    model: 'Şelale Ada',
+    materialId: 'crystallus',
+    title: 'Mutfak & Ada Tezgâhı',
+    subtitle: 'T-ONE • Crystallus • 12 mm',
+    image: '/eripek-kitchen-crystallus-01.webp',
   },
 ] as const
 
@@ -803,7 +820,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
         <div className="realSlabCopy">
           <div className="eyebrow gold">GERÇEK PLAKA GÖRÜNÜMÜ</div>
           <strong>{material.slabMeta}</strong>
-          <a className="kaleSourceLine" href="https://www.kale.com.tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-160x320-310101110925" target="_blank" rel="noreferrer" aria-label="Kale resmi Taj Mahal ürün sayfasını aç">
+          <a className="kaleSourceLine" href={material.productUrl || 'https://www.kale.com.tr/'} target="_blank" rel="noreferrer" aria-label={`Kale resmi ${material.name} ürün sayfasını aç`}>
             <span className="kaleWordmark">
               <svg className="kaleCastleMark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z" /></svg>
               <b>Kale</b>
@@ -819,7 +836,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
           <img src={material.slabImage} alt={`${material.name} gerçek T-ONE plaka büyük görünümü`} />
           <div className="slabLightboxCaption">
             <div><strong>{material.slabMeta}</strong><span>Gerçek plaka görünümü</span></div>
-            <a className="kaleSourceLine compact" href="https://www.kale.com.tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-160x320-310101110925" target="_blank" rel="noreferrer">
+            <a className="kaleSourceLine compact" href={material.productUrl || 'https://www.kale.com.tr/'} target="_blank" rel="noreferrer">
               <span className="kaleWordmark"><svg className="kaleCastleMark" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z" /></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span>
             </a>
           </div>
