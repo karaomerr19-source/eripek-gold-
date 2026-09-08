@@ -752,8 +752,9 @@ function ProductsTab({ residence, products, loading, onBack, onService }: { resi
 function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { open: boolean; src: string | null; alt: string; title: string; subtitle?: string; onClose: () => void }) {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const stageRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
-  const pinchRef = useRef<{ distance: number; scale: number } | null>(null)
+  const pinchRef = useRef<{ distance: number; scale: number; midX: number; midY: number; ox: number; oy: number } | null>(null)
 
   useEffect(() => {
     if (!open) return
@@ -763,12 +764,6 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
     document.body.style.overflow = 'hidden'
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose()
-      if (event.key === '+' || event.key === '=') setScale(value => Math.min(4, Number((value + .5).toFixed(2))))
-      if (event.key === '-') setScale(value => {
-        const next = Math.max(1, Number((value - .5).toFixed(2)))
-        if (next === 1) setOffset({ x: 0, y: 0 })
-        return next
-      })
       if (event.key === '0') { setScale(1); setOffset({ x: 0, y: 0 }) }
     }
     window.addEventListener('keydown', onKey)
@@ -780,41 +775,70 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
 
   if (!open || !src) return null
 
-  function zoomTo(next: number) {
-    const safe = Math.max(1, Math.min(4, Number(next.toFixed(2))))
-    setScale(safe)
-    if (safe === 1) setOffset({ x: 0, y: 0 })
+  function clampScale(value: number) {
+    return Math.max(1, Math.min(6, Number(value.toFixed(3))))
+  }
+
+  function stagePoint(clientX: number, clientY: number) {
+    const rect = stageRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return { x: clientX - rect.left, y: clientY - rect.top }
+  }
+
+  function zoomAt(nextScale: number, clientX?: number, clientY?: number) {
+    const next = clampScale(nextScale)
+    if (next === 1) {
+      setScale(1)
+      setOffset({ x: 0, y: 0 })
+      return
+    }
+    const rect = stageRef.current?.getBoundingClientRect()
+    if (!rect) { setScale(next); return }
+    const px = clientX ?? (rect.left + rect.width / 2)
+    const py = clientY ?? (rect.top + rect.height / 2)
+    const point = stagePoint(px, py)
+    const imageX = (point.x - offset.x) / scale
+    const imageY = (point.y - offset.y) / scale
+    setOffset({ x: point.x - imageX * next, y: point.y - imageY * next })
+    setScale(next)
   }
 
   function touchDistance(touches: React.TouchList) {
-    const a = touches[0]
-    const b = touches[1]
+    const a = touches[0], b = touches[1]
     return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+  }
+
+  function touchMidpoint(touches: React.TouchList) {
+    const a = touches[0], b = touches[1]
+    return { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 }
   }
 
   return <div className="premiumImageLightbox" role="dialog" aria-modal="true" aria-label={`${title} yüksek çözünürlüklü görünüm`} onClick={onClose}>
     <div className="premiumImagePanel" onClick={event => event.stopPropagation()}>
       <div className="premiumImageTopbar">
-        <div className="premiumImageTitle"><div className="premiumImageTitleLine"><strong>{title}</strong><em className="premiumHdBadge">HD • 4×</em></div>{subtitle && <span>{subtitle}</span>}</div>
+        <div className="premiumImageTitle"><div className="premiumImageTitleLine"><strong>{title}</strong><em className="premiumHdBadge">ULTRA HD • 6×</em></div>{subtitle && <span>{subtitle}</span>}</div>
         <div className="premiumImageActions">
-          <button type="button" onClick={() => zoomTo(scale - .5)} disabled={scale <= 1} aria-label="Uzaklaştır">−</button>
+          <button type="button" onClick={() => zoomAt(scale - .5)} disabled={scale <= 1} aria-label="Uzaklaştır">−</button>
           <span>{Math.round(scale * 100)}%</span>
-          <button type="button" onClick={() => zoomTo(scale + .5)} disabled={scale >= 4} aria-label="Yakınlaştır">+</button>
-          <button type="button" className="premiumReset" onClick={() => zoomTo(1)}>Sıfırla</button>
+          <button type="button" onClick={() => zoomAt(scale + .5)} disabled={scale >= 6} aria-label="Yakınlaştır">+</button>
+          <button type="button" className="premiumReset" onClick={() => zoomAt(1)}>Sıfırla</button>
           <button type="button" className="premiumClose" onClick={onClose} aria-label="Görseli kapat">×</button>
         </div>
       </div>
       <div
+        ref={stageRef}
         className={scale > 1 ? 'premiumImageStage isZoomed' : 'premiumImageStage'}
-        onWheel={event => { event.preventDefault(); zoomTo(scale + (event.deltaY < 0 ? .25 : -.25)) }}
-        onDoubleClick={() => zoomTo(scale === 1 ? 2 : 1)}
+        onWheel={event => { event.preventDefault(); zoomAt(scale + (event.deltaY < 0 ? .35 : -.35), event.clientX, event.clientY) }}
+        onDoubleClick={event => zoomAt(scale === 1 ? 2.5 : 1, event.clientX, event.clientY)}
         onMouseDown={event => { if (scale <= 1) return; dragRef.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y } }}
         onMouseMove={event => { const drag = dragRef.current; if (!drag || scale <= 1) return; setOffset({ x: drag.ox + event.clientX - drag.x, y: drag.oy + event.clientY - drag.y }) }}
         onMouseUp={() => { dragRef.current = null }}
         onMouseLeave={() => { dragRef.current = null }}
         onTouchStart={event => {
           if (event.touches.length === 2) {
-            pinchRef.current = { distance: touchDistance(event.touches), scale }
+            event.preventDefault()
+            const mid = touchMidpoint(event.touches)
+            pinchRef.current = { distance: touchDistance(event.touches), scale, midX: mid.x, midY: mid.y, ox: offset.x, oy: offset.y }
             dragRef.current = null
           } else if (event.touches.length === 1 && scale > 1) {
             const touch = event.touches[0]
@@ -824,8 +848,16 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
         onTouchMove={event => {
           if (event.touches.length === 2 && pinchRef.current) {
             event.preventDefault()
-            const ratio = touchDistance(event.touches) / pinchRef.current.distance
-            zoomTo(pinchRef.current.scale * ratio)
+            const pin = pinchRef.current
+            const ratio = touchDistance(event.touches) / pin.distance
+            const next = clampScale(pin.scale * ratio)
+            const mid = touchMidpoint(event.touches)
+            const startPoint = stagePoint(pin.midX, pin.midY)
+            const currentPoint = stagePoint(mid.x, mid.y)
+            const imageX = (startPoint.x - pin.ox) / pin.scale
+            const imageY = (startPoint.y - pin.oy) / pin.scale
+            setScale(next)
+            setOffset({ x: currentPoint.x - imageX * next, y: currentPoint.y - imageY * next })
           } else if (event.touches.length === 1 && dragRef.current && scale > 1) {
             event.preventDefault()
             const touch = event.touches[0]
@@ -844,11 +876,11 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
           alt={alt}
           draggable={false}
           loading="eager"
-          decoding="async"
+          decoding="sync"
           style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }}
         />
       </div>
-      <div className="premiumImageHelp"><span>Çift dokun / çift tıkla: 2×</span><span>İki parmakla yakınlaştır • Yakınken sürükle</span></div>
+      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>İki parmakla yakınlaştır • Görsel ekran içinde kalır</span></div>
     </div>
   </div>
 }
@@ -926,15 +958,15 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
     <style jsx global>{`
       .previewImageButton{position:absolute;z-index:1;inset:0;width:100%;height:100%;border:0;padding:0;margin:0;background:transparent;cursor:zoom-in;overflow:hidden}
       .previewOpenButton{position:absolute;z-index:7;right:12px;top:12px;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.34);background:rgba(24,20,16,.72);color:#fff;border-radius:999px;padding:7px 10px;font-size:9px;font-weight:850;backdrop-filter:blur(10px);cursor:zoom-in;box-shadow:0 6px 18px rgba(0,0,0,.15)}
-      .premiumImageLightbox{position:fixed;z-index:10050;inset:0;background:rgba(10,9,8,.94);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+      .premiumImageLightbox{position:fixed;z-index:10050;inset:0;background:#0b0a09;display:flex;align-items:center;justify-content:center;padding:max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left))}
       .premiumImagePanel{width:min(1480px,100%);height:min(96dvh,1080px);display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;min-width:0}
       .premiumImageTopbar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#fff;padding:2px 2px 0}
       .premiumImageTitle{display:grid;gap:2px;min-width:0}.premiumImageTitleLine{display:flex;align-items:center;gap:8px;min-width:0}
       .premiumImageTitle strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.premiumImageTitle span{font-size:10px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .premiumHdBadge{flex:0 0 auto;font-style:normal;font-size:8px;font-weight:900;letter-spacing:.08em;color:#f3d9a2;border:1px solid rgba(243,217,162,.26);background:rgba(172,127,47,.14);padding:4px 6px;border-radius:999px}
       .premiumImageActions{display:flex;align-items:center;gap:6px;flex:0 0 auto}.premiumImageActions button{height:38px;min-width:38px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.09);color:#fff;font-size:20px;font-weight:700;display:grid;place-items:center;cursor:pointer}.premiumImageActions button:disabled{opacity:.32}.premiumImageActions>span{min-width:47px;text-align:center;font-size:10px;font-weight:850}.premiumImageActions .premiumReset{width:auto;padding:0 11px;font-size:10px}.premiumImageActions .premiumClose{font-size:26px;background:rgba(35,31,27,.72)}
-      .premiumImageStage{position:relative;min-height:0;width:100%;height:100%;overflow:hidden;border-radius:16px;background:#151311;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;overscroll-behavior:contain;box-shadow:0 28px 90px rgba(0,0,0,.36)}.premiumImageStage.isZoomed{cursor:grab}.premiumImageStage.isZoomed:active{cursor:grabbing}
-      .premiumZoomImage{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;transform-origin:center center;will-change:transform;backface-visibility:hidden;transition:transform .08s linear;-webkit-user-drag:none;user-select:none}.premiumImageStage.isZoomed .premiumZoomImage{max-width:none;max-height:none;width:min(100%,1480px);height:auto}
+      .premiumImageStage{position:relative;min-height:0;width:100%;height:100%;overflow:hidden;border-radius:16px;background:#11100f;touch-action:none;user-select:none;overscroll-behavior:none;box-shadow:0 28px 90px rgba(0,0,0,.36)}.premiumImageStage.isZoomed{cursor:grab}.premiumImageStage.isZoomed:active{cursor:grabbing}
+      .premiumZoomImage{position:absolute;inset:0;margin:auto;display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;transform-origin:0 0;will-change:transform;-webkit-user-drag:none;user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden}.premiumImageStage.isZoomed .premiumZoomImage{max-width:100%;max-height:100%}
       .premiumImageHelp{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 3px;color:rgba(255,255,255,.54);font-size:9px}
       @media(max-width:720px){.previewOpenButton{right:10px;top:10px;padding:6px 8px;font-size:8px}.premiumImageLightbox{padding:8px}.premiumImagePanel{height:96dvh}.premiumImageTopbar{align-items:flex-start}.premiumImageActions{gap:4px}.premiumImageActions button{height:36px;min-width:36px}.premiumImageActions .premiumReset{display:none}.premiumImageActions>span{min-width:40px}.premiumImageStage{border-radius:12px}.premiumImageHelp span:first-child{display:none}}
     `}</style>
