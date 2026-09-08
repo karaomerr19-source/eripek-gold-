@@ -1,6 +1,6 @@
 'use client'
 
-import { FormEvent, useEffect, useMemo, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 
 type Residence = {
   id?: string
@@ -85,6 +85,7 @@ const CURATED_PREVIEWS = [
     title: 'Mutfak Porselen Tasarımı',
     subtitle: 'T-ONE • Taj Mahal • 12 mm',
     image: '/eripek-kitchen-island-01.webp',
+    fullImage: '/eripek-kitchen-island-01.webp',
   },
   {
     id: 'eripek-kitchen-crystallus-01',
@@ -94,6 +95,7 @@ const CURATED_PREVIEWS = [
     title: 'Mutfak Porselen Tasarımı',
     subtitle: 'T-ONE • Crystallus • 12 mm',
     image: '/eripek-kitchen-crystallus-01.webp',
+    fullImage: '/eripek-kitchen-crystallus-01.webp',
   },
   {
     id: 'eripek-kitchen-florence-01',
@@ -103,6 +105,7 @@ const CURATED_PREVIEWS = [
     title: 'Mutfak Porselen Tasarımı',
     subtitle: 'T-ONE • Florence • Parlak • 12 mm',
     image: '/eripek-kitchen-florence-01.webp',
+    fullImage: '/eripek-kitchen-florence-01-full.webp',
   },
 ] as const
 
@@ -746,6 +749,110 @@ function ProductsTab({ residence, products, loading, onBack, onService }: { resi
   </>
 }
 
+function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { open: boolean; src: string | null; alt: string; title: string; subtitle?: string; onClose: () => void }) {
+  const [scale, setScale] = useState(1)
+  const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
+  const pinchRef = useRef<{ distance: number; scale: number } | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    setScale(1)
+    setOffset({ x: 0, y: 0 })
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+      if (event.key === '+' || event.key === '=') setScale(value => Math.min(4, Number((value + .5).toFixed(2))))
+      if (event.key === '-') setScale(value => {
+        const next = Math.max(1, Number((value - .5).toFixed(2)))
+        if (next === 1) setOffset({ x: 0, y: 0 })
+        return next
+      })
+      if (event.key === '0') { setScale(1); setOffset({ x: 0, y: 0 }) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open, onClose])
+
+  if (!open || !src) return null
+
+  function zoomTo(next: number) {
+    const safe = Math.max(1, Math.min(4, Number(next.toFixed(2))))
+    setScale(safe)
+    if (safe === 1) setOffset({ x: 0, y: 0 })
+  }
+
+  function touchDistance(touches: React.TouchList) {
+    const a = touches[0]
+    const b = touches[1]
+    return Math.hypot(b.clientX - a.clientX, b.clientY - a.clientY)
+  }
+
+  return <div className="premiumImageLightbox" role="dialog" aria-modal="true" aria-label={`${title} yüksek çözünürlüklü görünüm`} onClick={onClose}>
+    <div className="premiumImagePanel" onClick={event => event.stopPropagation()}>
+      <div className="premiumImageTopbar">
+        <div className="premiumImageTitle"><div className="premiumImageTitleLine"><strong>{title}</strong><em className="premiumHdBadge">HD • 4×</em></div>{subtitle && <span>{subtitle}</span>}</div>
+        <div className="premiumImageActions">
+          <button type="button" onClick={() => zoomTo(scale - .5)} disabled={scale <= 1} aria-label="Uzaklaştır">−</button>
+          <span>{Math.round(scale * 100)}%</span>
+          <button type="button" onClick={() => zoomTo(scale + .5)} disabled={scale >= 4} aria-label="Yakınlaştır">+</button>
+          <button type="button" className="premiumReset" onClick={() => zoomTo(1)}>Sıfırla</button>
+          <button type="button" className="premiumClose" onClick={onClose} aria-label="Görseli kapat">×</button>
+        </div>
+      </div>
+      <div
+        className={scale > 1 ? 'premiumImageStage isZoomed' : 'premiumImageStage'}
+        onWheel={event => { event.preventDefault(); zoomTo(scale + (event.deltaY < 0 ? .25 : -.25)) }}
+        onDoubleClick={() => zoomTo(scale === 1 ? 2 : 1)}
+        onMouseDown={event => { if (scale <= 1) return; dragRef.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y } }}
+        onMouseMove={event => { const drag = dragRef.current; if (!drag || scale <= 1) return; setOffset({ x: drag.ox + event.clientX - drag.x, y: drag.oy + event.clientY - drag.y }) }}
+        onMouseUp={() => { dragRef.current = null }}
+        onMouseLeave={() => { dragRef.current = null }}
+        onTouchStart={event => {
+          if (event.touches.length === 2) {
+            pinchRef.current = { distance: touchDistance(event.touches), scale }
+            dragRef.current = null
+          } else if (event.touches.length === 1 && scale > 1) {
+            const touch = event.touches[0]
+            dragRef.current = { x: touch.clientX, y: touch.clientY, ox: offset.x, oy: offset.y }
+          }
+        }}
+        onTouchMove={event => {
+          if (event.touches.length === 2 && pinchRef.current) {
+            event.preventDefault()
+            const ratio = touchDistance(event.touches) / pinchRef.current.distance
+            zoomTo(pinchRef.current.scale * ratio)
+          } else if (event.touches.length === 1 && dragRef.current && scale > 1) {
+            event.preventDefault()
+            const touch = event.touches[0]
+            const drag = dragRef.current
+            setOffset({ x: drag.ox + touch.clientX - drag.x, y: drag.oy + touch.clientY - drag.y })
+          }
+        }}
+        onTouchEnd={event => {
+          if (event.touches.length < 2) pinchRef.current = null
+          if (event.touches.length === 0) dragRef.current = null
+        }}
+      >
+        <img
+          className="premiumZoomImage"
+          src={src}
+          alt={alt}
+          draggable={false}
+          loading="eager"
+          decoding="async"
+          style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }}
+        />
+      </div>
+      <div className="premiumImageHelp"><span>Çift dokun / çift tıkla: 2×</span><span>İki parmakla yakınlaştır • Yakınken sürükle</span></div>
+    </div>
+  </div>
+}
+
 function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; studioVariants: StudioVariant[]; onRefresh: () => Promise<void> }) {
   const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>('kitchen')
   const [model, setModel] = useState(STUDIO_MODELS.kitchen[0])
@@ -757,6 +864,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [slabZoom, setSlabZoom] = useState(false)
+  const [previewZoom, setPreviewZoom] = useState(false)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
@@ -765,6 +873,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const realPreview = studioVariants.find(v => v.room === room.title && (v.design_name === model || v.model_code === model) && v.material_name === material.name)
   const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
   const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
+  const previewFullImage = curatedPreview?.fullImage || previewImage
 
   useEffect(() => {
     if (!slabZoom) return
@@ -779,7 +888,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   }, [slabZoom])
 
   function chooseRoom(id: (typeof STUDIO_ROOMS)[number]['id']) {
-    setRoomId(id); setModel(STUDIO_MODELS[id][0]); setRequestNo('')
+    setRoomId(id); setModel(STUDIO_MODELS[id][0]); setRequestNo(''); setPreviewZoom(false)
   }
 
   function openFavorite(f: FavoriteItem) {
@@ -814,18 +923,47 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   }
 
   return <>
+    <style jsx global>{`
+      .previewImageButton{position:absolute;z-index:1;inset:0;width:100%;height:100%;border:0;padding:0;margin:0;background:transparent;cursor:zoom-in;overflow:hidden}
+      .previewOpenButton{position:absolute;z-index:7;right:12px;top:12px;display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.34);background:rgba(24,20,16,.72);color:#fff;border-radius:999px;padding:7px 10px;font-size:9px;font-weight:850;backdrop-filter:blur(10px);cursor:zoom-in;box-shadow:0 6px 18px rgba(0,0,0,.15)}
+      .premiumImageLightbox{position:fixed;z-index:10050;inset:0;background:rgba(10,9,8,.94);backdrop-filter:blur(14px);display:flex;align-items:center;justify-content:center;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+      .premiumImagePanel{width:min(1480px,100%);height:min(96dvh,1080px);display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;min-width:0}
+      .premiumImageTopbar{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#fff;padding:2px 2px 0}
+      .premiumImageTitle{display:grid;gap:2px;min-width:0}.premiumImageTitleLine{display:flex;align-items:center;gap:8px;min-width:0}
+      .premiumImageTitle strong{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.premiumImageTitle span{font-size:10px;color:rgba(255,255,255,.62);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .premiumHdBadge{flex:0 0 auto;font-style:normal;font-size:8px;font-weight:900;letter-spacing:.08em;color:#f3d9a2;border:1px solid rgba(243,217,162,.26);background:rgba(172,127,47,.14);padding:4px 6px;border-radius:999px}
+      .premiumImageActions{display:flex;align-items:center;gap:6px;flex:0 0 auto}.premiumImageActions button{height:38px;min-width:38px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.09);color:#fff;font-size:20px;font-weight:700;display:grid;place-items:center;cursor:pointer}.premiumImageActions button:disabled{opacity:.32}.premiumImageActions>span{min-width:47px;text-align:center;font-size:10px;font-weight:850}.premiumImageActions .premiumReset{width:auto;padding:0 11px;font-size:10px}.premiumImageActions .premiumClose{font-size:26px;background:rgba(35,31,27,.72)}
+      .premiumImageStage{position:relative;min-height:0;width:100%;height:100%;overflow:hidden;border-radius:16px;background:#151311;display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;overscroll-behavior:contain;box-shadow:0 28px 90px rgba(0,0,0,.36)}.premiumImageStage.isZoomed{cursor:grab}.premiumImageStage.isZoomed:active{cursor:grabbing}
+      .premiumZoomImage{display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;transform-origin:center center;will-change:transform;backface-visibility:hidden;transition:transform .08s linear;-webkit-user-drag:none;user-select:none}.premiumImageStage.isZoomed .premiumZoomImage{max-width:none;max-height:none;width:min(100%,1480px);height:auto}
+      .premiumImageHelp{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 3px;color:rgba(255,255,255,.54);font-size:9px}
+      @media(max-width:720px){.previewOpenButton{right:10px;top:10px;padding:6px 8px;font-size:8px}.premiumImageLightbox{padding:8px}.premiumImagePanel{height:96dvh}.premiumImageTopbar{align-items:flex-start}.premiumImageActions{gap:4px}.premiumImageActions button{height:36px;min-width:36px}.premiumImageActions .premiumReset{display:none}.premiumImageActions>span{min-width:40px}.premiumImageStage{border-radius:12px}.premiumImageHelp span:first-child{display:none}}
+    `}</style>
     <div><div className="eyebrow gold">DİJİTAL TASARIM SEÇİMİ</div><h2 className="welcome">Eviniz için kombinasyon oluşturun</h2><div className="small muted">Odayı, modeli ve porseleni seçin. Beğendiğiniz kombinasyonu hesabınıza kaydedin veya doğrudan talep oluşturun.</div></div>
 
     <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div>
 
     <div className={`designPreview material-${material.id} room-${room.id} ${curatedPreview ? 'curatedPreview' : ''}`}>
       <div className="previewBadge">{curatedPreview ? 'ERİPEK GOLD • ÖZEL TASARIM' : 'ÖZEL ÖN İZLEME'}</div>
-      {previewImage ? <img className="realPreviewImage" src={previewImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} /> : <><div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div></>}
+      {previewImage ? <>
+        <button type="button" className="previewImageButton" onClick={() => setPreviewZoom(true)} aria-label={`${curatedPreview?.title || `${room.title} ${model}`} görselini tam ekran büyüt`}>
+          <img className="realPreviewImage" src={previewImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} />
+        </button>
+        <button type="button" className="previewOpenButton" onClick={() => setPreviewZoom(true)}><span>⌕</span> Yakınlaştır</button>
+      </> : <><div className="scene sceneWall"></div><div className="scene sceneObject"></div><div className="scene sceneAccent"></div></>}
       <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{curatedPreview?.title || model}</strong><div className="small">{curatedPreview?.subtitle || material.name}</div></div>
     </div>
 
-    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo('') }}>{m}</button>)}</div></div>
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo('') }}>{m.slabImage ? <img className="materialRealThumb" src={m.slabImage} alt={`${m.name} gerçek porselen plaka`} loading="lazy" /> : <span className={`swatch material-${m.id}`}></span>}<span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
+    <PremiumImageLightbox
+      open={previewZoom}
+      src={previewFullImage}
+      alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`}
+      title={curatedPreview?.title || `${room.title} • ${model}`}
+      subtitle={curatedPreview?.subtitle || material.name}
+      onClose={() => setPreviewZoom(false)}
+    />
+
+    <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(m => <button key={m} type="button" className={model === m ? 'chip active' : 'chip'} onClick={() => { setModel(m); setRequestNo(''); setPreviewZoom(false) }}>{m}</button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(m => <button key={m.id} type="button" className={materialId === m.id ? 'materialOption active' : 'materialOption'} onClick={() => { setMaterialId(m.id); setRequestNo(''); setPreviewZoom(false) }}>{m.slabImage ? <img className="materialRealThumb" src={m.slabImage} alt={`${m.name} gerçek porselen plaka`} loading="lazy" /> : <span className={`swatch material-${m.id}`}></span>}<span><strong>{m.name}</strong><small>{m.note}</small></span><b>›</b></button>)}</div></div>
 
     {material.slabImage && <>
       <div className="realSlabCard">
