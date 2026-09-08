@@ -641,10 +641,46 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
   </form>
 }
 
+type DashboardTab = 'home' | 'discover' | 'requests' | 'service' | 'account' | 'products'
+
+const DASHBOARD_TABS: DashboardTab[] = ['home', 'discover', 'requests', 'service', 'account', 'products']
+
+function readDashboardTab(): DashboardTab {
+  if (typeof window === 'undefined') return 'home'
+  const value = new URLSearchParams(window.location.search).get('tab') as DashboardTab | null
+  return value && DASHBOARD_TABS.includes(value) ? value : 'home'
+}
+
 function Dashboard({ customer, residence, residences, sessionToken, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
-  const [tab, setTab] = useState<'home' | 'discover' | 'requests' | 'service' | 'account' | 'products'>('home')
+  const [tab, setTab] = useState<DashboardTab>(() => readDashboardTab())
   const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], support: null })
   const [portalLoading, setPortalLoading] = useState(true)
+
+  function navigate(next: DashboardTab, mode: 'push' | 'replace' = 'push') {
+    setTab(next)
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (next === 'home') {
+      url.searchParams.delete('tab')
+      url.searchParams.delete('room')
+      url.searchParams.delete('model')
+      url.searchParams.delete('material')
+    } else {
+      url.searchParams.set('tab', next)
+      if (next !== 'discover') {
+        url.searchParams.delete('room')
+        url.searchParams.delete('model')
+        url.searchParams.delete('material')
+      }
+    }
+    window.history[mode === 'replace' ? 'replaceState' : 'pushState']({ tab: next }, '', `${url.pathname}${url.search}${url.hash}`)
+  }
+
+  useEffect(() => {
+    const onPopState = () => setTab(readDashboardTab())
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   async function refreshPortal() {
     try {
@@ -669,15 +705,16 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
 
   return <>
     <div className="screen stack dashboardScreen">
+      {tab !== 'home' && <button type="button" onClick={() => window.history.length > 1 ? window.history.back() : navigate('home', 'replace')} aria-label="Önceki sayfaya dön" style={{alignSelf:'flex-start',border:'1px solid rgba(52,44,36,.12)',background:'rgba(255,255,255,.78)',backdropFilter:'blur(12px)',borderRadius:999,padding:'9px 13px',fontSize:12,fontWeight:800,color:'#332c25',display:'inline-flex',alignItems:'center',gap:7,cursor:'pointer'}}>← Geri</button>}
       <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
-      {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => setTab('service')} onDiscover={() => setTab('discover')} onRequests={() => setTab('requests')} onProducts={() => setTab('products')} />}
+      {tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} />}
       {tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} studioVariants={portal.studio_variants} onRefresh={refreshPortal} />}
       {tab === 'requests' && <RequestsTab residence={residence} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
-      {tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length} onProducts={() => setTab('products')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
-      {tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onBack={() => setTab('account')} onService={() => setTab('service')} />}
+      {tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length} onProducts={() => navigate('products')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
+      {tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onBack={() => navigate('account')} onService={() => navigate('service')} />}
     </div>
-    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => setTab('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => setTab('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => setTab('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => setTab('service')}>⌁<br />Servis</button><button className={tab === 'account' || tab === 'products' ? 'active' : ''} onClick={() => setTab('account')}>○<br />Hesabım</button></div>
+    <div className="nav"><button className={tab === 'home' ? 'active' : ''} onClick={() => navigate('home')}>⌂<br />Ana Sayfa</button><button className={tab === 'discover' ? 'active' : ''} onClick={() => navigate('discover')}>◇<br />Keşfet</button><button className={tab === 'requests' ? 'active' : ''} onClick={() => navigate('requests')}>≡<br />Taleplerim</button><button className={tab === 'service' ? 'active' : ''} onClick={() => navigate('service')}>⌁<br />Servis</button><button className={tab === 'account' || tab === 'products' ? 'active' : ''} onClick={() => navigate('account')}>○<br />Hesabım</button></div>
   </>
 }
 
@@ -752,9 +789,35 @@ function ProductsTab({ residence, products, loading, onBack, onService }: { resi
 function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { open: boolean; src: string | null; alt: string; title: string; subtitle?: string; onClose: () => void }) {
   const [scale, setScale] = useState(1)
   const [offset, setOffset] = useState({ x: 0, y: 0 })
+  const [imageSize, setImageSize] = useState({ width: 1, height: 1 })
   const stageRef = useRef<HTMLDivElement | null>(null)
   const dragRef = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null)
   const pinchRef = useRef<{ distance: number; scale: number; midX: number; midY: number; ox: number; oy: number } | null>(null)
+
+  function clampScale(value: number) {
+    return Math.max(1, Math.min(6, Number(value.toFixed(3))))
+  }
+
+  function panBounds(forScale: number) {
+    const rect = stageRef.current?.getBoundingClientRect()
+    if (!rect || imageSize.width <= 1 || imageSize.height <= 1) return { x: 0, y: 0 }
+    const fit = Math.min(rect.width / imageSize.width, rect.height / imageSize.height)
+    const baseWidth = imageSize.width * fit
+    const baseHeight = imageSize.height * fit
+    return {
+      x: Math.max(0, (baseWidth * forScale - rect.width) / 2),
+      y: Math.max(0, (baseHeight * forScale - rect.height) / 2),
+    }
+  }
+
+  function clampOffset(next: { x: number; y: number }, forScale: number) {
+    if (forScale <= 1) return { x: 0, y: 0 }
+    const bounds = panBounds(forScale)
+    return {
+      x: Math.max(-bounds.x, Math.min(bounds.x, next.x)),
+      y: Math.max(-bounds.y, Math.min(bounds.y, next.y)),
+    }
+  }
 
   useEffect(() => {
     if (!open) return
@@ -766,23 +829,22 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
       if (event.key === 'Escape') onClose()
       if (event.key === '0') { setScale(1); setOffset({ x: 0, y: 0 }) }
     }
+    const onResize = () => setOffset(current => clampOffset(current, scale))
     window.addEventListener('keydown', onKey)
+    window.addEventListener('resize', onResize)
     return () => {
       document.body.style.overflow = previousOverflow
       window.removeEventListener('keydown', onKey)
+      window.removeEventListener('resize', onResize)
     }
-  }, [open, onClose])
+  }, [open, onClose, scale, imageSize.width, imageSize.height])
 
   if (!open || !src) return null
-
-  function clampScale(value: number) {
-    return Math.max(1, Math.min(6, Number(value.toFixed(3))))
-  }
 
   function stagePoint(clientX: number, clientY: number) {
     const rect = stageRef.current?.getBoundingClientRect()
     if (!rect) return { x: 0, y: 0 }
-    return { x: clientX - rect.left, y: clientY - rect.top }
+    return { x: clientX - (rect.left + rect.width / 2), y: clientY - (rect.top + rect.height / 2) }
   }
 
   function zoomAt(nextScale: number, clientX?: number, clientY?: number) {
@@ -793,14 +855,15 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
       return
     }
     const rect = stageRef.current?.getBoundingClientRect()
-    if (!rect) { setScale(next); return }
+    if (!rect) { setScale(next); setOffset(current => clampOffset(current, next)); return }
     const px = clientX ?? (rect.left + rect.width / 2)
     const py = clientY ?? (rect.top + rect.height / 2)
     const point = stagePoint(px, py)
     const imageX = (point.x - offset.x) / scale
     const imageY = (point.y - offset.y) / scale
-    setOffset({ x: point.x - imageX * next, y: point.y - imageY * next })
+    const nextOffset = { x: point.x - imageX * next, y: point.y - imageY * next }
     setScale(next)
+    setOffset(clampOffset(nextOffset, next))
   }
 
   function touchDistance(touches: React.TouchList) {
@@ -831,7 +894,11 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
         onWheel={event => { event.preventDefault(); zoomAt(scale + (event.deltaY < 0 ? .35 : -.35), event.clientX, event.clientY) }}
         onDoubleClick={event => zoomAt(scale === 1 ? 2.5 : 1, event.clientX, event.clientY)}
         onMouseDown={event => { if (scale <= 1) return; dragRef.current = { x: event.clientX, y: event.clientY, ox: offset.x, oy: offset.y } }}
-        onMouseMove={event => { const drag = dragRef.current; if (!drag || scale <= 1) return; setOffset({ x: drag.ox + event.clientX - drag.x, y: drag.oy + event.clientY - drag.y }) }}
+        onMouseMove={event => {
+          const drag = dragRef.current
+          if (!drag || scale <= 1) return
+          setOffset(clampOffset({ x: drag.ox + event.clientX - drag.x, y: drag.oy + event.clientY - drag.y }, scale))
+        }}
         onMouseUp={() => { dragRef.current = null }}
         onMouseLeave={() => { dragRef.current = null }}
         onTouchStart={event => {
@@ -856,18 +923,20 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
             const currentPoint = stagePoint(mid.x, mid.y)
             const imageX = (startPoint.x - pin.ox) / pin.scale
             const imageY = (startPoint.y - pin.oy) / pin.scale
+            const nextOffset = { x: currentPoint.x - imageX * next, y: currentPoint.y - imageY * next }
             setScale(next)
-            setOffset({ x: currentPoint.x - imageX * next, y: currentPoint.y - imageY * next })
+            setOffset(clampOffset(nextOffset, next))
           } else if (event.touches.length === 1 && dragRef.current && scale > 1) {
             event.preventDefault()
             const touch = event.touches[0]
             const drag = dragRef.current
-            setOffset({ x: drag.ox + touch.clientX - drag.x, y: drag.oy + touch.clientY - drag.y })
+            setOffset(clampOffset({ x: drag.ox + touch.clientX - drag.x, y: drag.oy + touch.clientY - drag.y }, scale))
           }
         }}
         onTouchEnd={event => {
           if (event.touches.length < 2) pinchRef.current = null
           if (event.touches.length === 0) dragRef.current = null
+          setOffset(current => clampOffset(current, scale))
         }}
       >
         <img
@@ -876,19 +945,39 @@ function PremiumImageLightbox({ open, src, alt, title, subtitle, onClose }: { op
           alt={alt}
           draggable={false}
           loading="eager"
-          decoding="sync"
+          decoding="async"
+          onLoad={event => {
+            const image = event.currentTarget
+            setImageSize({ width: image.naturalWidth || 1, height: image.naturalHeight || 1 })
+            setOffset({ x: 0, y: 0 })
+          }}
           style={{ transform: `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})` }}
         />
       </div>
-      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>İki parmakla yakınlaştır • Görsel ekran içinde kalır</span></div>
+      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>İki parmakla yakınlaştır • Görsel sınırlarının dışına çıkmaz</span></div>
     </div>
   </div>
 }
 
 function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; studioVariants: StudioVariant[]; onRefresh: () => Promise<void> }) {
-  const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>('kitchen')
-  const [model, setModel] = useState(STUDIO_MODELS.kitchen[0])
-  const [materialId, setMaterialId] = useState<(typeof STUDIO_MATERIALS)[number]['id']>('taj')
+  const [roomId, setRoomId] = useState<(typeof STUDIO_ROOMS)[number]['id']>(() => {
+    if (typeof window === 'undefined') return 'kitchen'
+    const value = new URLSearchParams(window.location.search).get('room')
+    return STUDIO_ROOMS.some(r => r.id === value) ? value as (typeof STUDIO_ROOMS)[number]['id'] : 'kitchen'
+  })
+  const [model, setModel] = useState(() => {
+    if (typeof window === 'undefined') return STUDIO_MODELS.kitchen[0]
+    const params = new URLSearchParams(window.location.search)
+    const roomValue = params.get('room')
+    const validRoom = STUDIO_ROOMS.some(r => r.id === roomValue) ? roomValue as (typeof STUDIO_ROOMS)[number]['id'] : 'kitchen'
+    const modelValue = params.get('model')
+    return modelValue && STUDIO_MODELS[validRoom].includes(modelValue) ? modelValue : STUDIO_MODELS[validRoom][0]
+  })
+  const [materialId, setMaterialId] = useState<(typeof STUDIO_MATERIALS)[number]['id']>(() => {
+    if (typeof window === 'undefined') return 'taj'
+    const value = new URLSearchParams(window.location.search).get('material')
+    return STUDIO_MATERIALS.some(m => m.id === value) ? value as (typeof STUDIO_MATERIALS)[number]['id'] : 'taj'
+  })
   const [requestType, setRequestType] = useState(PROJECT_REQUEST_TYPES[0])
   const [notes, setNotes] = useState('')
   const [requestNo, setRequestNo] = useState('')
@@ -906,6 +995,16 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
   const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
   const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
   const previewFullImage = curatedPreview?.fullImage || previewImage
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('tab') !== 'discover') return
+    url.searchParams.set('room', roomId)
+    url.searchParams.set('model', model)
+    url.searchParams.set('material', materialId)
+    window.history.replaceState({ ...(window.history.state || {}), tab: 'discover' }, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [roomId, model, materialId])
 
   useEffect(() => {
     if (!slabZoom) return
@@ -966,7 +1065,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, onRef
       .premiumHdBadge{flex:0 0 auto;font-style:normal;font-size:8px;font-weight:900;letter-spacing:.08em;color:#f3d9a2;border:1px solid rgba(243,217,162,.26);background:rgba(172,127,47,.14);padding:4px 6px;border-radius:999px}
       .premiumImageActions{display:flex;align-items:center;gap:6px;flex:0 0 auto}.premiumImageActions button{height:38px;min-width:38px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.09);color:#fff;font-size:20px;font-weight:700;display:grid;place-items:center;cursor:pointer}.premiumImageActions button:disabled{opacity:.32}.premiumImageActions>span{min-width:47px;text-align:center;font-size:10px;font-weight:850}.premiumImageActions .premiumReset{width:auto;padding:0 11px;font-size:10px}.premiumImageActions .premiumClose{font-size:26px;background:rgba(35,31,27,.72)}
       .premiumImageStage{position:relative;min-height:0;width:100%;height:100%;overflow:hidden;border-radius:16px;background:#11100f;touch-action:none;user-select:none;overscroll-behavior:none;box-shadow:0 28px 90px rgba(0,0,0,.36)}.premiumImageStage.isZoomed{cursor:grab}.premiumImageStage.isZoomed:active{cursor:grabbing}
-      .premiumZoomImage{position:absolute;inset:0;margin:auto;display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;transform-origin:0 0;will-change:transform;-webkit-user-drag:none;user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden}.premiumImageStage.isZoomed .premiumZoomImage{max-width:100%;max-height:100%}
+      .premiumZoomImage{position:absolute;inset:0;margin:auto;display:block;max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain;image-rendering:auto;transform-origin:center center;will-change:transform;-webkit-user-drag:none;user-select:none;backface-visibility:hidden;-webkit-backface-visibility:hidden}.premiumImageStage.isZoomed .premiumZoomImage{max-width:100%;max-height:100%}
       .premiumImageHelp{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 3px;color:rgba(255,255,255,.54);font-size:9px}
       @media(max-width:720px){.previewOpenButton{right:10px;top:10px;padding:6px 8px;font-size:8px}.premiumImageLightbox{padding:8px}.premiumImagePanel{height:96dvh}.premiumImageTopbar{align-items:flex-start}.premiumImageActions{gap:4px}.premiumImageActions button{height:36px;min-width:36px}.premiumImageActions .premiumReset{display:none}.premiumImageActions>span{min-width:40px}.premiumImageStage{border-radius:12px}.premiumImageHelp span:first-child{display:none}}
     `}</style>
