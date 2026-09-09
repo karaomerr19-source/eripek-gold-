@@ -627,14 +627,20 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
 
   function maxSharpScale() {
     const image = imageRef.current
-    if (!image) return 6
+    if (!image) return 1
     const baseWidth = image.clientWidth, baseHeight = image.clientHeight
     const naturalWidth = image.naturalWidth || 0, naturalHeight = image.naturalHeight || 0
-    if (!baseWidth || !baseHeight || !naturalWidth || !naturalHeight) return 6
-    const widthLimit = naturalWidth / baseWidth
-    const heightLimit = naturalHeight / baseHeight
-    const limit = Math.min(widthLimit, heightLimit)
-    return Math.max(1, Math.min(6, Number(limit.toFixed(3))))
+    if (!baseWidth || !baseHeight || !naturalWidth || !naturalHeight) return 1
+
+    // Gerçek ekran piksel yoğunluğunu hesaba kat. Böylece 125/150% Windows ölçekleme
+    // ve Retina/iPhone ekranlarında görsel, kaynak pikselinin ötesine zorlanmaz.
+    const dpr = typeof window === 'undefined' ? 1 : Math.max(1, Math.min(window.devicePixelRatio || 1, 2))
+    const widthLimit = naturalWidth / (baseWidth * dpr)
+    const heightLimit = naturalHeight / (baseHeight * dpr)
+
+    // %4 güvenlik payı: tarayıcı alt-piksel yuvarlamalarında dahi yumuşama oluşmasın.
+    const pixelPerfectLimit = Math.min(widthLimit, heightLimit) * 0.96
+    return Math.max(1, Math.min(6, Number(pixelPerfectLimit.toFixed(3))))
   }
 
   const clampScale = (value: number) => Math.max(1, Math.min(maxSharpScale(), Number(value.toFixed(4))))
@@ -715,6 +721,8 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
     let cancelled = false
     if (first !== src) {
       const loader = new window.Image()
+      loader.decoding = 'async'
+      loader.fetchPriority = 'high'
       loader.src = src
       const ready = async () => {
         try { if ('decode' in loader) await loader.decode() } catch {}
@@ -818,7 +826,7 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
         <img className="premiumImageBackdrop" src={displaySrc} alt="" aria-hidden="true" draggable={false}/>
         <img ref={imageRef} className="premiumZoomImage" src={displaySrc} alt={alt} draggable={false} loading="eager" decoding="async" fetchPriority="high" onLoad={() => requestAnimationFrame(() => paint(transformRef.current))}/>
       </div>
-      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>Keskinlik koruması açık • Görsel sınırlarının dışına çıkmaz</span></div>
+      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>Piksel keskinliği korunur • Bulanık zoom engellenir</span></div>
     </div>
   </div>
 }
