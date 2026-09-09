@@ -53,7 +53,22 @@ const STUDIO_MODELS: Record<StudioRoomId, string[]> = {
   living: ['TV Duvarı', 'Konsol + Dresuar', 'Porselen Masa'],
 }
 
-const STUDIO_MATERIALS = [
+type MaterialId = 'taj' | 'crystallus' | 'florence' | 'uniq' | 'caldia'
+
+type StudioMaterial = {
+  id: MaterialId
+  name: string
+  note: string
+  slabImage: string
+  slabMeta: string
+  productCode: string
+  size: string
+  surface: string
+  thickness: string
+  productUrl: string
+}
+
+const STUDIO_MATERIALS: readonly StudioMaterial[] = [
   {
     id: 'taj', name: 'Taj Mahal', note: '1/5 • Sıcak bej damar',
     slabImage: 'https://cdn.kale.com.tr/0/0/taj-mahal-parlak-kalesinterflex-porselen-plaka-162x323/379d53d5-6059-4b67-9608-4780d92c5331/650/2',
@@ -84,9 +99,8 @@ const STUDIO_MATERIALS = [
     slabMeta: 'T-ONE • Calacatta Caldia • Saten • 12 mm', productCode: '310101108842', size: '162×323 cm', surface: 'Saten', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/calacatta-caldia-saten-kalesinterflex-porselen-plaka-162x323-310101108842',
   },
-] as const
+]
 
-type MaterialId = (typeof STUDIO_MATERIALS)[number]['id']
 
 const CURATED_PREVIEWS = [
   { id: 'eripek-kitchen-island-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'taj', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Taj Mahal • 12 mm', image: '/eripek-kitchen-island-01.webp', fullImage: '/eripek-kitchen-island-01.webp' },
@@ -868,7 +882,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, selec
     <PremiumImageViewer open={viewer === 'preview'} previewSrc={previewImage} src={previewFullImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} title={curatedPreview?.title || `${room.title} • ${model}`} subtitle={curatedPreview?.subtitle || material.name} onClose={() => setViewer(null)} />
 
     <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(item => <button type="button" key={item} className={model === item ? 'chip active' : 'chip'} onClick={() => chooseModel(item)}>{item}</button>)}</div></div>
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(item => <button type="button" key={item.id} className={materialId === item.id ? 'materialOption active' : 'materialOption'} onClick={() => chooseMaterial(item.id)}>{item.slabImage ? <img src={item.slabImage} alt={`${item.name} porselen plaka`} loading="lazy" className="materialRealThumb"/> : <span className={`swatch material-${item.id}`}/>}<span><strong>{item.name}</strong><small>{item.note}</small></span><b>›</b></button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(item => <button type="button" key={item.id} className={materialId === item.id ? 'materialOption active' : 'materialOption'} onClick={() => chooseMaterial(item.id)}><img src={item.slabImage} alt={`${item.name} porselen plaka`} loading="lazy" className="materialRealThumb"/><span><strong>{item.name}</strong><small>{item.note}</small></span><b>›</b></button>)}</div></div>
 
     {material.slabImage && <div className="realSlabCard"><button type="button" className="realSlabVisual" onClick={() => setViewer('slab')} aria-label={`${material.name} plaka görselini büyüt`}><img src={material.slabImage} alt={`${material.name} T-ONE plaka görünümü`}/><span className="slabZoomHint">⌕ Büyüt</span></button><div className="realSlabCopy"><div className="eyebrow gold">PLAKA & TEKNİK BİLGİ</div><strong>{material.slabMeta}</strong><div className="materialSpecs">{material.size && <span>{material.size}</span>}{material.thickness && <span>{material.thickness}</span>}{material.surface && <span>{material.surface}</span>}</div>{material.productCode && <div className="productCodeLine">Ürün kodu: {material.productCode}</div>}{material.productUrl && <a href={material.productUrl} target="_blank" rel="noreferrer" className="kaleSourceLine"><span className="kaleWordmark"><svg viewBox="0 0 24 24" aria-hidden="true" className="kaleCastleMark"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z"/></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span></a>}<div className="small muted">Plaka görselini büyüterek damar ve yüzey karakterini inceleyebilirsiniz. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div></div></div>}
     <PremiumImageViewer open={viewer === 'slab'} previewSrc={material.slabImage} src={material.slabImage} alt={`${material.name} T-ONE plaka`} title={`${material.name} • Plaka Görünümü`} subtitle={material.slabMeta || material.name} onClose={() => setViewer(null)} />
