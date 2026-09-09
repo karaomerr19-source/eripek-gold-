@@ -72,8 +72,13 @@ const STUDIO_MATERIALS = [
     slabMeta: 'T-ONE • Florence • Parlak • 12 mm', productCode: '310101110212', size: '162×323 cm', surface: 'Parlak', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/tr-en/florence-polished-kalesinterflex-porcelain-slab-162x323-310101110212',
   },
-  { id: 'soft', name: 'Soft Bej', note: 'Sade • mat görünüm', slabImage: null, slabMeta: null, productCode: null, size: null, surface: null, thickness: null, productUrl: null },
-  { id: 'dark', name: 'Dark Modern', note: 'Koyu • güçlü kontrast', slabImage: null, slabMeta: null, productCode: null, size: null, surface: null, thickness: null, productUrl: null },
+  {
+    id: 'uniq', name: 'Calacatta Uniq', note: '4/5 • Beyaz zemin • zarif gri damar • mat',
+    slabImage: 'https://cdn.kale.com.tr/0/0/calacatta-unique-mat-kalesinterflex-porselen-plaka-162x323/4bc66cd1-3025-4b55-a36f-8969b2d48cb8/650/2',
+    slabMeta: 'T-ONE • Calacatta Uniq • Mat • 12 mm', productCode: '310101110172', size: '162×323 cm', surface: 'Mat', thickness: '12 mm',
+    productUrl: 'https://www.kale.com.tr/calacatta-unique-mat-kalesinterflex-porselen-plaka-162x323-310101110172',
+  },
+  { id: 'dark', name: 'Dark Modern', note: '5/5 • Koyu • güçlü kontrast', slabImage: null, slabMeta: null, productCode: null, size: null, surface: null, thickness: null, productUrl: null },
 ] as const
 
 type MaterialId = (typeof STUDIO_MATERIALS)[number]['id']
@@ -82,6 +87,7 @@ const CURATED_PREVIEWS = [
   { id: 'eripek-kitchen-island-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'taj', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Taj Mahal • 12 mm', image: '/eripek-kitchen-island-01.webp', fullImage: '/eripek-kitchen-island-01.webp' },
   { id: 'eripek-kitchen-crystallus-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'crystallus', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Crystallus • 12 mm', image: '/eripek-kitchen-crystallus-01.webp', fullImage: '/eripek-kitchen-crystallus-01.webp' },
   { id: 'eripek-kitchen-florence-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'florence', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Florence • Parlak • 12 mm', image: '/eripek-kitchen-florence-01.webp', fullImage: '/eripek-kitchen-florence-01-full.webp' },
+  { id: 'eripek-kitchen-calacatta-uniq-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'uniq', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Calacatta Uniq • Mat • 12 mm', image: '/eripek-kitchen-calacatta-uniq-01.webp', fullImage: '/eripek-kitchen-calacatta-uniq-01-full.webp' },
 ] as const
 
 const SERVICE_PRODUCTS = ['Porselen Lavabo', 'Porselen Niş', 'Mutfak Tezgahı', 'Ada Tezgahı', 'Kahve Köşesi', 'TV Ünitesi', 'Yatak Başlığı / Baza Paneli', 'Porselen Masa', 'Basamak', 'Duvar Kaplama', 'Diğer Porselen Uygulama'] as const
