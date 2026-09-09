@@ -78,7 +78,12 @@ const STUDIO_MATERIALS = [
     slabMeta: 'T-ONE • Calacatta Unique • Mat • 12 mm', productCode: '310101110172', size: '162×323 cm', surface: 'Mat', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/calacatta-unique-mat-kalesinterflex-porselen-plaka-162x323-310101110172',
   },
-  { id: 'dark', name: 'Dark Modern', note: '5/5 • Koyu • güçlü kontrast', slabImage: null, slabMeta: null, productCode: null, size: null, surface: null, thickness: null, productUrl: null },
+  {
+    id: 'caldia', name: 'Calacatta Caldia', note: '5/5 • Beyaz zemin • sıcak bej damar • saten',
+    slabImage: '/calacatta-caldia-slab.webp',
+    slabMeta: 'T-ONE • Calacatta Caldia • Saten • 12 mm', productCode: '310101108842', size: '162×323 cm', surface: 'Saten', thickness: '12 mm',
+    productUrl: 'https://www.kale.com.tr/calacatta-caldia-saten-kalesinterflex-porselen-plaka-162x323-310101108842',
+  },
 ] as const
 
 type MaterialId = (typeof STUDIO_MATERIALS)[number]['id']
@@ -88,6 +93,7 @@ const CURATED_PREVIEWS = [
   { id: 'eripek-kitchen-crystallus-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'crystallus', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Crystallus • 12 mm', image: '/eripek-kitchen-crystallus-01.webp', fullImage: '/eripek-kitchen-crystallus-01.webp' },
   { id: 'eripek-kitchen-florence-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'florence', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Florence • Parlak • 12 mm', image: '/eripek-kitchen-florence-01.webp', fullImage: '/eripek-kitchen-florence-01-full.webp' },
   { id: 'eripek-kitchen-calacatta-uniq-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'uniq', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Calacatta Unique • Mat • 12 mm', image: '/eripek-kitchen-calacatta-uniq-01.webp', fullImage: '/eripek-kitchen-calacatta-uniq-01-full.webp' },
+  { id: 'eripek-kitchen-calacatta-caldia-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'caldia', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Calacatta Caldia • Saten • 12 mm', image: '/eripek-kitchen-calacatta-caldia-01.webp', fullImage: '/eripek-kitchen-calacatta-caldia-01-full.webp' },
 ] as const
 
 const SERVICE_PRODUCTS = ['Porselen Lavabo', 'Porselen Niş', 'Mutfak Tezgahı', 'Ada Tezgahı', 'Kahve Köşesi', 'TV Ünitesi', 'Yatak Başlığı / Baza Paneli', 'Porselen Masa', 'Basamak', 'Duvar Kaplama', 'Diğer Porselen Uygulama'] as const
@@ -605,7 +611,19 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
 
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
-  const clampScale = (value: number) => Math.max(1, Math.min(6, Number(value.toFixed(4))))
+  function maxSharpScale() {
+    const image = imageRef.current
+    if (!image) return 6
+    const baseWidth = image.clientWidth, baseHeight = image.clientHeight
+    const naturalWidth = image.naturalWidth || 0, naturalHeight = image.naturalHeight || 0
+    if (!baseWidth || !baseHeight || !naturalWidth || !naturalHeight) return 6
+    const widthLimit = naturalWidth / baseWidth
+    const heightLimit = naturalHeight / baseHeight
+    const limit = Math.min(widthLimit, heightLimit)
+    return Math.max(1, Math.min(6, Number(limit.toFixed(3))))
+  }
+
+  const clampScale = (value: number) => Math.max(1, Math.min(maxSharpScale(), Number(value.toFixed(4))))
 
   function bounds(scale: number) {
     const stage = stageRef.current, image = imageRef.current
@@ -786,7 +804,7 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
         <img className="premiumImageBackdrop" src={displaySrc} alt="" aria-hidden="true" draggable={false}/>
         <img ref={imageRef} className="premiumZoomImage" src={displaySrc} alt={alt} draggable={false} loading="eager" decoding="async" fetchPriority="high" onLoad={() => requestAnimationFrame(() => paint(transformRef.current))}/>
       </div>
-      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>İki parmakla yakınlaştır • Görsel sınırlarının dışına çıkmaz</span></div>
+      <div className="premiumImageHelp"><span>Çift dokun: dokunduğun noktaya 2.5×</span><span>Keskinlik koruması açık • Görsel sınırlarının dışına çıkmaz</span></div>
     </div>
   </div>
 }
