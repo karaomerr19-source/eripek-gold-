@@ -17,26 +17,40 @@ type CatalogResponse = { project: { name: string; slug: string }; residences: Re
 type SessionResponse = { customer: Customer; residences: Residence[] }
 type ServiceAttachment = { storage_path?: string; mime_type?: string; signed_url?: string; created_at?: string }
 type ServiceRequestItem = { id?: string; ticket_no: string; status: string; issue_type: string; description?: string | null; appointment_at?: string | null; admin_note?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string; attachments?: ServiceAttachment[] }
-type ProjectRequestItem = { request_no: string; status: string; request_type?: string | null; room?: string | null; design_name?: string | null; material_name?: string | null; notes?: string | null; appointment_at?: string | null; admin_note?: string | null; quote_amount?: number | null; quote_currency?: string | null; quote_note?: string | null; quote_valid_until?: string | null; quoted_at?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string }
+type ProjectRequestItem = { request_no: string; status: string; request_type?: string | null; room?: string | null; design_name?: string | null; material_name?: string | null; notes?: string | null; appointment_at?: string | null; admin_note?: string | null; quote_amount?: number | null; quote_currency?: string | null; quote_note?: string | null; quote_valid_until?: string | null; quoted_at?: string | null; customer_quote_response?: 'pending'|'accepted'|'question'|'declined'; customer_quote_note?: string | null; customer_quote_responded_at?: string | null; created_at: string; updated_at?: string; residence_id?: string; block?: string; floor?: string; unit_no?: string }
 type InstalledProduct = { id: string; residence_id: string; product_code?: string | null; category: string; name: string; location?: string | null; dimensions?: string | null; installed_at?: string | null; warranty_months?: number | null; notes?: string | null; status?: string }
 type FavoriteItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; created_at?: string }
 type StudioVariant = { room?: string | null; design_name?: string | null; model_code?: string | null; material_name?: string | null; preview_image_url?: string | null }
 type SupportInfo = { contact_name?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; address?: string | null }
 type CartItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; quantity?: number; notes?: string | null; status?: string; created_at?: string; updated_at?: string }
-type CustomerOffer = { id: string; residence_id?: string | null; title: string; message?: string | null; discount_type?: string; discount_value?: number | null; promo_code?: string | null; starts_at?: string; ends_at?: string | null; status?: string; created_at?: string }
+type CustomerOffer = { id: string; residence_id?: string | null; title: string; message?: string | null; discount_type?: string; discount_value?: number | null; promo_code?: string | null; starts_at?: string; ends_at?: string | null; status?: string; created_at?: string; response_status?: 'pending'|'interested'|'question'|'declined'; response_note?: string | null; responded_at?: string | null; updated_at?: string | null; context?: { source?: string; cart_id?: string; room?: string; design_name?: string; material_name?: string } | null }
 type Campaign = { id: string; title: string; subtitle?: string | null; body?: string | null; placement?: string | null; audience?: Record<string, unknown> | null; image_url?: string | null; cta_label?: string | null; cta_url?: string | null; starts_at?: string | null; ends_at?: string | null; is_active?: boolean }
-type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[]; cart: CartItem[]; offers: CustomerOffer[]; campaigns: Campaign[]; support?: SupportInfo | null }
+type RecentView = { room?: string | null; design_name?: string | null; material_name?: string | null; created_at?: string | null }
+type InterestScore = { material_name?: string | null; room?: string | null; score: number; last_seen_at?: string | null }
+type Personalization = { recent_views: RecentView[]; top_materials: InterestScore[]; top_rooms: InterestScore[]; last_activity_at?: string | null }
+type NotificationItem = { id: string; residence_id?: string | null; kind: 'offer'|'quote'|'service_status'|'project_status'|'appointment'|'note'|'system'; title: string; body?: string | null; entity_type?: string | null; entity_id?: string | null; metadata?: Record<string, unknown> | null; read_at?: string | null; created_at: string }
+type PrivacyState = { notice_version: string; notice_seen_at?: string | null; personalization_consent: boolean | null; personalization_consented_at?: string | null; personalization_withdrawn_at?: string | null }
+type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[]; cart: CartItem[]; offers: CustomerOffer[]; campaigns: Campaign[]; personalization: Personalization; notifications: NotificationItem[]; unread_notifications: number; support?: SupportInfo | null }
 type ServicePhoto = { name: string; data_url: string }
 
 type DashboardTab = 'home' | 'products' | 'discover' | 'designs' | 'requests' | 'account' | 'service'
 type HistoryMode = 'push' | 'replace'
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
-const ADD_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_add_residence'
+const CLAIM_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_claim_v2'
+const ADD_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_add_residence_v2'
 const PLANNING_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_request_planning'
 const CUSTOMER_EVENT_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_event'
 const CUSTOMER_COMMERCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_commerce'
 const CUSTOMER_CART_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_cart_set'
+const CUSTOMER_PERSONALIZATION_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_personalization'
+const CUSTOMER_OFFER_RESPONSE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_offer_respond'
+const CUSTOMER_QUOTE_RESPONSE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_quote_respond'
+const CUSTOMER_NOTIFICATIONS_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_notifications'
+const CUSTOMER_NOTIFICATION_READ_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_notification_read'
+const CUSTOMER_PRIVACY_GET_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_privacy_get'
+const CUSTOMER_PRIVACY_NOTICE_ACK_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_privacy_notice_ack'
+const PRIVACY_NOTICE_VERSION = '2026-09-14-v1'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
 const ACCOUNT_CACHE_KEY = 'eripek_gold_account'
@@ -44,19 +58,29 @@ const SESSION_COOKIE_KEY = 'eripek_gold_session'
 const DISCOVER_CACHE_KEY = 'eripek_gold_discover_selection_v2'
 
 const STUDIO_ROOMS = [
-  { id: 'kitchen', title: 'Mutfak', sub: 'Ada • Tezgah • Kahve Köşesi', icon: 'K' },
-  { id: 'bedroom', title: 'Yatak Odası', sub: 'Başlık • Baza • LED Panel', icon: 'Y' },
-  { id: 'bathroom', title: 'Banyo', sub: 'Lavabo • Niş • Duvar', icon: 'B' },
-  { id: 'living', title: 'Salon', sub: 'TV Ünitesi • Masa • Dresuar', icon: 'S' },
+  { id: 'kitchen', title: 'Mutfak', sub: 'Ada • Tezgah • Kahve Köşesi', icon: 'M' },
+  { id: 'bathroom', title: 'Banyo', sub: 'Duvar • Niş • Duş Alanı', icon: 'B' },
+  { id: 'sink', title: 'Lavabo', sub: 'Ayaklı • Mobilya Üstü • Raflı', icon: 'L' },
+  { id: 'living', title: 'TV Ünitesi', sub: 'Bookmatch • Panel • Gizli Kapı', icon: 'T' },
+  { id: 'stairs', title: 'Basamak', sub: 'LED • Porselen • Cam Korkuluk', icon: 'B' },
+  { id: 'wall', title: 'Duvar', sub: 'Bookmatch • Niş • Dekoratif Panel', icon: 'D' },
+  { id: 'table', title: 'Masa', sub: 'Yemek • Orta Sehpa • Dresuar', icon: 'A' },
+  { id: 'special', title: 'Özel Üretim', sub: 'Banko • Saksı • Dekoratif Uygulama', icon: 'Ö' },
+  { id: 'bedroom', title: 'Yatak Odası', sub: 'Başlık • Panel • Özel Uygulama', icon: 'Y' },
 ] as const
 
 type StudioRoomId = (typeof STUDIO_ROOMS)[number]['id']
 
 const STUDIO_MODELS: Record<StudioRoomId, string[]> = {
   kitchen: ['Şelale Ada', 'Düz Modern Ada', 'Oturma Çıkıntılı Ada'],
+  bathroom: ['Duş Alanı', 'Niş + Duvar', 'Tam Banyo Uygulaması'],
+  sink: ['Ayaklı Lavabo', 'Mobilya Üstü Lavabo', 'Porselen Raflı Lavabo'],
+  living: ['Bookmatch TV Duvarı', 'TV Ünitesi', 'Gizli Kapı + Duvar'],
+  stairs: ['LED Porselen Basamak', 'Düz Basamak', 'Basamak + Cam Korkuluk'],
+  wall: ['Bookmatch Duvar', 'Dekoratif Panel', 'Niş Uygulaması'],
+  table: ['Porselen Yemek Masası', 'Orta Sehpa', 'Dresuar'],
+  special: ['Karşılama Bankosu', 'Porselen Saksı', 'Özel Tasarım'],
   bedroom: ['Düz Panel', 'LED’li Panel', 'Tavana Kadar Panel'],
-  bathroom: ['Ayaklı Lavabo', 'Duvar Boyu Lavabo', 'Lavabo + Niş Seti'],
-  living: ['TV Duvarı', 'Konsol + Dresuar', 'Porselen Masa'],
 }
 
 type MaterialId = 'taj' | 'crystallus' | 'florence' | 'uniq' | 'caldia'
@@ -72,6 +96,12 @@ type StudioMaterial = {
   surface: string
   thickness: string
   productUrl: string
+  character: string
+  palette: string
+  vein: string
+  mood: string
+  recommendedFor: readonly string[]
+  pairings: readonly string[]
 }
 
 const STUDIO_MATERIALS: readonly StudioMaterial[] = [
@@ -80,30 +110,60 @@ const STUDIO_MATERIALS: readonly StudioMaterial[] = [
     slabImage: 'https://cdn.kale.com.tr/0/0/taj-mahal-parlak-kalesinterflex-porselen-plaka-162x323/379d53d5-6059-4b67-9608-4780d92c5331/650/2',
     slabMeta: 'T-ONE • Taj Mahal • Parlak • 12 mm', productCode: '310101110564', size: '162×323 cm', surface: 'Parlak', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/int-tr/taj-mahal-parlak-kalesinterflex-porselen-plaka-162x323-310101110564',
+    character: 'Sakin, sıcak ve doğal taş hissi veren bir karakter. Büyük yüzeylerde ağırlaşmadan premium bir bütünlük kurar.',
+    palette: 'Sıcak bej • krem • yumuşak kahve',
+    vein: 'Akışkan, düşük-orta kontrastlı damar',
+    mood: 'Sıcak minimal • zamansız • sakin',
+    recommendedFor: ['Mutfak tezgâhı', 'Ada', 'Kahve köşesi', 'TV ünitesi', 'Lavabo'],
+    pairings: ['Vizon mobilya', 'Doğal meşe', 'Siyah metal', 'Sıcak LED'],
   },
   {
     id: 'crystallus', name: 'Crystallus', note: '2/5 • Kristalimsi bej • parlak',
     slabImage: 'https://cdn.kale.com.tr/0/0/crystallus-parlak-kalesinterflex-porselen-plaka-162x323/cb8798ec-2269-4c5a-9da4-c4d8211cc268/650/2',
     slabMeta: 'T-ONE • Crystallus • Parlak • 12 mm', productCode: '310101109350', size: '162×323 cm', surface: 'Parlak', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/crystallus-parlak-kalesinterflex-porselen-plaka-162x323-310101109350',
+    character: 'Kristalimsi geçişleri ve daha hareketli yüzeyiyle ışığı güçlü kullanan, gösterişli ama kontrollü bir taş dili sunar.',
+    palette: 'Bej • kristal tonları • sıcak gri',
+    vein: 'Katmanlı, hareketli ve parlak damar',
+    mood: 'Çağdaş • sofistike • dikkat çekici',
+    recommendedFor: ['Ada', 'Tezgâh arası', 'TV ünitesi', 'Masa', 'Dekoratif duvar'],
+    pairings: ['Antrasit', 'Füme cam', 'Siyah metal', 'Ceviz'],
   },
   {
     id: 'florence', name: 'Florence', note: '3/5 • Beyaz • sıcak altın/bej damar',
     slabImage: 'https://image.architonic.com/pro2-3/20805996/florence--310101108973-2-pro-g-arcit18.jpg',
     slabMeta: 'T-ONE • Florence • Parlak • 12 mm', productCode: '310101110212', size: '162×323 cm', surface: 'Parlak', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/tr-en/florence-polished-kalesinterflex-porcelain-slab-162x323-310101110212',
+    character: 'Açık zemin üzerindeki sıcak altın-bej damarlarla mekânı aydınlık tutarken lüks bir mermer etkisi oluşturur.',
+    palette: 'Beyaz • krem • sıcak altın/bej',
+    vein: 'Belirgin ama dengeli sıcak damar',
+    mood: 'Aydınlık lüks • zarif • modern klasik',
+    recommendedFor: ['Mutfak', 'Ada', 'Bookmatch duvar', 'TV ünitesi', 'Banyo'],
+    pairings: ['Krem mobilya', 'Gold detay', 'Açık meşe', 'Siyah cam'],
   },
   {
     id: 'uniq', name: 'Calacatta Unique', note: '4/5 • Beyaz zemin • zarif gri damar • mat',
     slabImage: '/calacatta-unique-slab.webp',
     slabMeta: 'T-ONE • Calacatta Unique • Mat • 12 mm', productCode: '310101110172', size: '162×323 cm', surface: 'Mat', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/calacatta-unique-mat-kalesinterflex-porselen-plaka-162x323-310101110172',
+    character: 'Mat yüzeyi ve ince gri damarlarıyla daha mimari, sakin ve rafine bir görünüm verir; kalabalık dekor istemeyen alanlarda güçlüdür.',
+    palette: 'Beyaz • açık gri • nötr tonlar',
+    vein: 'İnce, zarif ve düşük kontrastlı damar',
+    mood: 'Minimal • mimari • rafine',
+    recommendedFor: ['Mutfak', 'Lavabo', 'Duvar paneli', 'Banyo', 'Masa'],
+    pairings: ['Mat vizon', 'Açık gri', 'Doğal ahşap', 'Füme metal'],
   },
   {
     id: 'caldia', name: 'Calacatta Caldia', note: '5/5 • Beyaz zemin • sıcak bej damar • saten',
     slabImage: '/calacatta-caldia-slab.webp',
     slabMeta: 'T-ONE • Calacatta Caldia • Saten • 12 mm', productCode: '310101108842', size: '162×323 cm', surface: 'Saten', thickness: '12 mm',
     productUrl: 'https://www.kale.com.tr/calacatta-caldia-saten-kalesinterflex-porselen-plaka-162x323-310101108842',
+    character: 'Saten yüzey ile sıcak bej damarların birleşimi daha yumuşak ve dokunsal bir lüks hissi verir.',
+    palette: 'Beyaz • sıcak bej • krem',
+    vein: 'Orta kontrastlı, sıcak ve doğal damar',
+    mood: 'Yumuşak lüks • sıcak • dengeli',
+    recommendedFor: ['Mutfak', 'Ada', 'Lavabo', 'TV ünitesi', 'Bookmatch duvar'],
+    pairings: ['Vizon', 'Ceviz', 'Bronz detay', 'Sıcak aydınlatma'],
   },
 ]
 
@@ -115,6 +175,37 @@ const CURATED_PREVIEWS = [
   { id: 'eripek-kitchen-calacatta-uniq-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'uniq', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Calacatta Unique • Mat • 12 mm', image: '/eripek-kitchen-calacatta-uniq-01.webp', fullImage: '/eripek-kitchen-calacatta-uniq-01-full.webp' },
   { id: 'eripek-kitchen-calacatta-caldia-01', roomId: 'kitchen', model: 'Şelale Ada', materialId: 'caldia', title: 'Mutfak Porselen Tasarımı', subtitle: 'T-ONE • Calacatta Caldia • Saten • 12 mm', image: '/eripek-kitchen-calacatta-caldia-01.webp', fullImage: '/eripek-kitchen-calacatta-caldia-01-full.webp' },
 ] as const
+
+type ReferenceProject = {
+  id: string
+  category: StudioRoomId
+  title: string
+  subtitle: string
+  image: string
+  gallery: string[]
+}
+
+function referenceThumbPath(src: string) { return src.replace(/\.(jpe?g|png)$/i, '-thumb.webp') }
+
+const REFERENCE_PROJECTS: readonly ReferenceProject[] = [
+  { id: 'stairs-led-01', category: 'stairs', title: 'LED’li Porselen Basamak', subtitle: 'Porselen basamak • LED aydınlatma • cam korkuluk', image: '/references/IMG_5318-thumb.webp', gallery: ['/references/IMG_5318-thumb.webp', '/references/IMG_5319-thumb.webp', '/references/IMG_5320-thumb.webp', '/references/IMG_5321-thumb.webp'] },
+  { id: 'sink-grey-01', category: 'sink', title: 'Gri Doku Porselen Lavabo', subtitle: 'Özel üretim • entegre hazne • modern yüzey', image: '/references/IMG_5324-thumb.webp', gallery: ['/references/IMG_5324-thumb.webp', '/references/IMG_5326-thumb.webp'] },
+  { id: 'sink-antrasit-01', category: 'sink', title: 'Antrasit LED Nişli Lavabo', subtitle: 'Açık raf • LED ayna • porselen hazne', image: '/references/IMG_5328-thumb.webp', gallery: ['/references/IMG_5328-thumb.webp', '/references/IMG_5330-thumb.webp'] },
+  { id: 'sink-natural-01', category: 'sink', title: 'Doğal Doku Porselen Lavabo', subtitle: 'Sıcak gri doku • geniş hazne • özel üretim', image: '/references/IMG_5331-thumb.webp', gallery: ['/references/IMG_5331-thumb.webp', '/references/IMG_5332-thumb.webp'] },
+  { id: 'sink-minimal-01', category: 'sink', title: 'Raflı Minimal Porselen Lavabo', subtitle: 'Duvara monte • açık raf • kompakt çözüm', image: '/references/IMG_5334-thumb.webp', gallery: ['/references/IMG_5334-thumb.webp', '/references/IMG_5335-thumb.webp'] },
+  { id: 'sink-led-01', category: 'sink', title: 'Aydınlatmalı Gri Lavabo', subtitle: 'Mobilya üstü • LED ayna • entegre porselen', image: '/references/IMG_5338-thumb.webp', gallery: ['/references/IMG_5338-thumb.webp', '/references/IMG_5339-thumb.webp'] },
+  { id: 'sink-olimpo-01', category: 'sink', title: 'Olimpo', subtitle: 'Ayaklı porselen lavabo • kompakt alan çözümü', image: '/references/IMG_5349-thumb.webp', gallery: ['/references/IMG_5349-thumb.webp', '/references/IMG_5350-thumb.webp', '/references/IMG_5351-thumb.webp', '/references/IMG_5352-thumb.webp'] },
+  { id: 'sink-angela-01', category: 'sink', title: 'Minimalist Angela', subtitle: 'Raflı porselen lavabo • özel üretim', image: '/references/IMG_5356-thumb.webp', gallery: ['/references/IMG_5355-thumb.webp', '/references/IMG_5356-thumb.webp', '/references/IMG_5357-thumb.webp'] },
+  { id: 'sink-white-led-01', category: 'sink', title: 'Beyaz Damarlı LED Lavabo', subtitle: 'Açık raf • yuvarlak LED ayna • damarlı yüzey', image: '/references/IMG_5359-thumb.webp', gallery: ['/references/IMG_5359-thumb.webp', '/references/IMG_5360-thumb.webp'] },
+  { id: 'sink-dark-01', category: 'sink', title: 'Koyu Damarlı Porselen Lavabo', subtitle: 'Koyu ton • lineer lavabo • sıcak aydınlatma', image: '/references/IMG_5367-thumb.webp', gallery: ['/references/IMG_5361-thumb.webp', '/references/IMG_5367-thumb.webp'] },
+  { id: 'sink-pleacer-01', category: 'sink', title: 'Pleacer', subtitle: 'Uzun porselen lavabo • mobilya üstü uygulama', image: '/references/IMG_5382-thumb.webp', gallery: ['/references/IMG_5382-thumb.webp', '/references/IMG_5383-thumb.webp'] },
+  { id: 'kitchen-grey-01', category: 'kitchen', title: 'Gri Modern Mutfak', subtitle: 'Porselen tezgâh • tezgâh arası uygulaması', image: '/references/IMG_5341-thumb.webp', gallery: ['/references/IMG_5341-thumb.webp'] },
+  { id: 'kitchen-island-01', category: 'kitchen', title: 'Beyaz Ada Mutfak', subtitle: 'Ada tezgâh • porselen yüzey • modern mutfak', image: '/references/IMG_5343-thumb.webp', gallery: ['/references/IMG_5343-thumb.webp'] },
+  { id: 'kitchen-dark-01', category: 'kitchen', title: 'Koyu Damarlı Mutfak', subtitle: 'Koyu porselen tezgâh • tezgâh arası bütünlük', image: '/references/IMG_5344-thumb.webp', gallery: ['/references/IMG_5344-thumb.webp'] },
+  { id: 'niche-led-01', category: 'bathroom', title: 'LED’li Porselen Niş', subtitle: 'Dekoratif niş • gizli LED • porselen çerçeve', image: '/references/IMG_5385-thumb.webp', gallery: ['/references/IMG_5385-thumb.webp', '/references/IMG_5386-thumb.webp'] },
+  { id: 'decor-vase-01', category: 'special', title: 'Porselen Vazo & Saksı', subtitle: 'Özel üretim dekoratif porselen uygulama', image: '/references/IMG_5388-thumb.webp', gallery: ['/references/IMG_5388-thumb.webp', '/references/IMG_5390(1)-thumb.webp', '/references/IMG_5391-thumb.webp'] },
+  { id: 'special-reception-01', category: 'special', title: 'Porselen Karşılama Bankosu', subtitle: 'Kurumsal alan • porselen kaplama • özel üretim', image: '/references/IMG_5347-thumb.webp', gallery: ['/references/IMG_5347-thumb.webp'] }
+]
 
 const SERVICE_PRODUCTS = ['Porselen Lavabo', 'Porselen Niş', 'Mutfak Tezgahı', 'Ada Tezgahı', 'Kahve Köşesi', 'TV Ünitesi', 'Yatak Başlığı / Baza Paneli', 'Porselen Masa', 'Basamak', 'Duvar Kaplama', 'Diğer Porselen Uygulama'] as const
 const PROJECT_REQUEST_TYPES = ['Keşif ve ölçü talebi', 'Fiyat teklifi istiyorum', 'Bu tasarımı evime uygula', 'Yeni proje danışmanlığı'] as const
@@ -169,8 +260,34 @@ async function rpcPost(url: string, body: Record<string, unknown>) {
   if (!res.ok) throw new Error('rpc_failed')
   return data
 }
-async function addResidenceToAccount(sessionToken: string, block: string, floor: string, unitNo: string) {
-  const data = await rpcPost(ADD_RESIDENCE_RPC, { p_session_hash: await sha256Hex(sessionToken), p_block: block, p_floor: floor, p_unit_no: unitNo })
+function normalizeActivationCode(value: string) { return value.toUpperCase().replace(/[^A-Z0-9]/g, '') }
+function formatActivationCodeInput(value: string) {
+  const compact = normalizeActivationCode(value).slice(0, 14)
+  if (!compact) return ''
+  const parts = [compact.slice(0,2), compact.slice(2,6), compact.slice(6,10), compact.slice(10,14)].filter(Boolean)
+  return parts.join('-')
+}
+function randomSessionToken(bytes = 32) {
+  const data = new Uint8Array(bytes); crypto.getRandomValues(data)
+  let raw = ''; data.forEach(v => { raw += String.fromCharCode(v) })
+  return btoa(raw).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'')
+}
+async function claimResidenceSecure(input: { block:string; floor:string; unitNo:string; fullName:string; phone:string; email:string; pin:string; activationCode:string }) {
+  const compact = normalizeActivationCode(input.activationCode)
+  if (!/^EG[0-9A-F]{12}$/.test(compact)) throw new Error('invalid_activation_code')
+  const sessionToken = randomSessionToken(), expiresAt = new Date(Date.now() + 30 * 86400000).toISOString()
+  const data = await rpcPost(CLAIM_RESIDENCE_RPC, {
+    p_block: input.block, p_floor: input.floor, p_unit_no: input.unitNo,
+    p_full_name: input.fullName, p_phone: input.phone, p_email: input.email, p_pin: input.pin,
+    p_activation_code_hash: await sha256Hex(compact), p_session_hash: await sha256Hex(sessionToken), p_expires_at: expiresAt,
+  })
+  if (data?.result !== 'ok') throw new Error(data?.result || 'claim_failed')
+  return { ...data, session_token: sessionToken, expires_at: expiresAt }
+}
+async function addResidenceToAccount(sessionToken: string, block: string, floor: string, unitNo: string, activationCode: string) {
+  const compact = normalizeActivationCode(activationCode)
+  if (!/^EG[0-9A-F]{12}$/.test(compact)) throw new Error('invalid_activation_code')
+  const data = await rpcPost(ADD_RESIDENCE_RPC, { p_session_hash: await sha256Hex(sessionToken), p_block: block, p_floor: floor, p_unit_no: unitNo, p_activation_code_hash: await sha256Hex(compact) })
   if (data?.result !== 'ok' && data?.result !== 'already_linked') throw new Error(data?.result || 'residence_add_failed')
   return data
 }
@@ -183,7 +300,7 @@ function getCookie(name: string) {
 }
 function rememberSession(token: string) {
   localStorage.setItem(SESSION_KEY, token)
-  document.cookie = `${SESSION_COOKIE_KEY}=${encodeURIComponent(token)}; Max-Age=${180 * 24 * 60 * 60}; Path=/; SameSite=Lax; Secure`
+  document.cookie = `${SESSION_COOKIE_KEY}=${encodeURIComponent(token)}; Max-Age=${30 * 24 * 60 * 60}; Path=/; SameSite=Lax; Secure`
 }
 function forgetSession() {
   localStorage.removeItem(SESSION_KEY); localStorage.removeItem(ACCOUNT_CACHE_KEY)
@@ -338,6 +455,7 @@ export default function Home() {
 function Register({ residences, onSuccess }: { residences: Residence[]; onSuccess: (data: any) => void }) {
   const [mode, setMode] = useState<'register' | 'login' | 'recovery'>('register')
   const [block, setBlock] = useState(''), [floor, setFloor] = useState(''), [unit, setUnit] = useState('')
+  const [activationCode, setActivationCode] = useState('')
   const [name, setName] = useState(''), [phone, setPhone] = useState(''), [email, setEmail] = useState(''), [pin, setPin] = useState(''), [pinAgain, setPinAgain] = useState('')
   const [identifier, setIdentifier] = useState(''), [loginPin, setLoginPin] = useState(''), [msg, setMsg] = useState(''), [busy, setBusy] = useState(false)
   const [recoveryStep, setRecoveryStep] = useState<'form' | 'pending' | 'reset'>('form')
@@ -373,17 +491,19 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
       return
     }
     if (!block || !floor || !unit) return setMsg('Önce blok, kat ve dairenizi seçin.')
+    if (!/^EG[0-9A-F]{12}$/.test(normalizeActivationCode(activationCode))) return setMsg('Daireniz için verilen aktivasyon kodunu girin.')
     if (name.trim().length < 3) return setMsg('Ad soyad bilgisini kontrol edin.')
     if (phone.replace(/\D/g, '').length < 10) return setMsg('Telefon numarasını kontrol edin.')
     if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setMsg('E-posta adresini kontrol edin.')
     if (!/^\d{6}$/.test(pin)) return setMsg('Farklı cihazlardan giriş için 6 haneli bir giriş kodu belirleyin.')
     if (pin !== pinAgain) return setMsg('Giriş kodları aynı değil.')
     setBusy(true)
-    try { onSuccess(await gateway({ action: 'claim', block, floor: Number(floor), unit_no: unit, full_name: name.trim(), phone: phone.trim(), email: email.trim(), pin })) }
+    try { onSuccess(await claimResidenceSecure({ block, floor, unitNo: unit, fullName: name.trim(), phone: phone.trim(), email: email.trim(), pin, activationCode })) }
     catch (err) {
       const code = err instanceof Error ? err.message : ''
       if (code === 'residence_already_claimed') setMsg('Bu daire daha önce tanımlanmış. “Zaten kaydım var” seçeneğinden giriş yapın.')
-      else if (code === 'invalid_phone') setMsg('Telefonu 05xx xxx xx xx şeklinde girin.')
+      else if (code === 'invalid_activation_code') setMsg('Aktivasyon kodu bu daireyle eşleşmiyor veya daha önce kullanılmış. Size verilen kodu kontrol edin.')
+      else if (code === 'invalid_claim') setMsg('Kayıt bilgilerini kontrol edin. Telefon, giriş kodu veya aktivasyon bilgisi geçersiz olabilir.')
       else if (code === 'invalid_email') setMsg('E-posta adresini kontrol edin.')
       else if (code === 'email_in_use') setMsg('Bu e-posta başka bir hesaba bağlı görünüyor.')
       else setMsg('Kayıt tamamlanamadı. Bilgileri kontrol edip tekrar deneyin.')
@@ -451,16 +571,19 @@ function Register({ residences, onSuccess }: { residences: Residence[]; onSucces
       <div className="existingLoginIntro"><div className="eyebrow gold">MEVCUT HESABIM</div><strong>Daha önce dairenizi tanımladıysanız yeniden kayıt olmanıza gerek yok.</strong><div className="small muted">Telefon numaranız veya e-posta adresiniz ve 6 haneli Eripek Gold giriş kodunuzla her cihazdan hesabınıza ulaşın.</div></div>
       <div><label className="label">Telefon veya E-posta</label><input className="input" value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="username" placeholder="05xx xxx xx xx veya ad@eposta.com" /></div>
       <div><label className="label">6 Haneli Giriş Kodu</label><input className="input pinInput" value={loginPin} onChange={e => setLoginPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="••••••" /></div>
-      {msg && <div className="errorBox">{msg}</div>}<button className="btn primary" disabled={busy}>{busy ? 'Hesabınız açılıyor…' : 'Hesabıma Giriş Yap'}</button><button className="forgotCodeBtn" type="button" onClick={() => { setMode('recovery'); setRecoveryStep(recoveryRequestNo ? recoveryStatus === 'approved' ? 'reset' : 'pending' : 'form'); setMsg('') }}>Giriş kodumu unuttum</button><div className="privacyLine">Aynı hesap <span>•</span> Farklı cihaz <span>•</span> 180 gün hatırlama</div>
+      {msg && <div className="errorBox">{msg}</div>}<button className="btn primary" disabled={busy}>{busy ? 'Hesabınız açılıyor…' : 'Hesabıma Giriş Yap'}</button><button className="forgotCodeBtn" type="button" onClick={() => { setMode('recovery'); setRecoveryStep(recoveryRequestNo ? recoveryStatus === 'approved' ? 'reset' : 'pending' : 'form'); setMsg('') }}>Giriş kodumu unuttum</button><div className="privacyLine">Aynı hesap <span>•</span> Farklı cihaz <span>•</span> Güvenli oturum</div>
     </> : <>
       <div className="sectionHead"><div className="stepBadge">1</div><div><strong>Dairenizi seçin</strong><div className="small muted">QR tüm Eripek Gold konutlarında ortaktır.</div></div></div>
       <div className="grid3"><div><label className="label">Blok</label><select className="input" value={block} onChange={e => { setBlock(e.target.value); setFloor(''); setUnit('') }}><option value="">Seçin</option>{blocks.map(b => <option key={b}>{b}</option>)}</select></div><div><label className="label">Kat</label><select className="input" value={floor} disabled={!block} onChange={e => { setFloor(e.target.value); setUnit('') }}><option value="">Seçin</option>{floors.map(f => <option key={f} value={f}>{f}. Kat</option>)}</select></div><div><label className="label">Daire</label><select className="input" value={unit} disabled={!floor} onChange={e => setUnit(e.target.value)}><option value="">Seçin</option>{units.map(u => <option key={u} value={u}>{u}</option>)}</select></div></div>
       {block && floor && unit && <div className="selectedResidence"><div className="small muted">Seçilen konut</div><strong>{block} Blok • {floor}. Kat • Daire {unit}</strong></div>}
-      <div className="sectionHead"><div className="stepBadge">2</div><div><strong>Kişisel hesabınızı açın</strong><div className="small muted">Bir kez tanımlayın; sonrasında her cihazdan giriş yapın.</div></div></div>
+      <div className="sectionHead"><div className="stepBadge">2</div><div><strong>Dairenizi doğrulayın</strong><div className="small muted">Teslim edilen Eripek Gold aktivasyon kodu yalnızca bu dairede bir kez kullanılabilir.</div></div></div>
+      <div><label className="label">Daire Aktivasyon Kodu</label><input className="input activationCodeInput" value={activationCode} onChange={e => setActivationCode(formatActivationCodeInput(e.target.value))} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="EG-XXXX-XXXX-XXXX" /><div className="small muted spaceTop">Kodunuz blok/kat/daire bilgisiyle eşleşmezse kayıt açılamaz.</div></div>
+      <div className="sectionHead"><div className="stepBadge">3</div><div><strong>Kişisel hesabınızı açın</strong><div className="small muted">Bir kez tanımlayın; sonrasında her cihazdan giriş yapın.</div></div></div>
       <div><label className="label">Ad Soyad</label><input className="input" value={name} onChange={e => setName(e.target.value)} autoComplete="name" placeholder="Adınız Soyadınız" /></div><div><label className="label">Telefon</label><input className="input" value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel" inputMode="tel" placeholder="05xx xxx xx xx" /></div><div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" inputMode="email" placeholder="ad@eposta.com" /></div>
       <div className="pinGrid"><div><label className="label">6 Haneli Giriş Kodu</label><input className="input pinInput" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div><div><label className="label">Giriş Kodunu Tekrar</label><input className="input pinInput" value={pinAgain} onChange={e => setPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="new-password" placeholder="6 rakam" /></div></div>
       <div className="card loginCodeNote"><strong>Bu kod ne işe yarar?</strong><div className="small muted">Telefon değiştirdiğinizde veya başka bir cihazdan girdiğinizde yeniden kayıt olmadan hesabınızı açmanızı sağlar.</div></div>
-      {msg && <div className="errorBox">{msg}</div>}<button className="btn primary" disabled={busy}>{busy ? 'Hesabınız hazırlanıyor…' : 'Dairemi Tanımla'}</button><div className="privacyLine">Tek kayıt <span>•</span> Her cihazdan giriş <span>•</span> Uygulama indirme yok</div><PrivacyNotice />
+      <div className="registrationPrivacyHint">Kaydı tamamlamadan önce aşağıdaki KVKK Aydınlatma Metni üzerinden hangi verilerin hangi amaçlarla işlendiğini inceleyebilirsiniz. Portal kullanımında gezinme ve ilgi hareketleri hesabınızla ilişkilendirilerek kayıt altına alınır.</div><PrivacyNotice />
+      {msg && <div className="errorBox">{msg}</div>}<button className="btn primary" disabled={busy}>{busy ? 'Hesabınız hazırlanıyor…' : 'Dairemi Tanımla'}</button><div className="privacyLine">Tek kayıt <span>•</span> Her cihazdan giriş <span>•</span> Uygulama indirme yok</div>
     </>}
   </form>
 }
@@ -476,8 +599,11 @@ function NavIcon({ name }: { name: 'home' | 'products' | 'discover' | 'requests'
 
 function Dashboard({ customer, residence, residences, sessionToken, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [route, setRoute] = useState<PortalRoute>(() => readPortalRoute())
-  const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], cart: [], offers: [], campaigns: [], support: null })
+  const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], cart: [], offers: [], campaigns: [], personalization: { recent_views: [], top_materials: [], top_rooms: [], last_activity_at: null }, notifications: [], unread_notifications: 0, support: null })
   const [portalLoading, setPortalLoading] = useState(true)
+  const [privacy, setPrivacy] = useState<PrivacyState | null>(null)
+  const [privacyLoading, setPrivacyLoading] = useState(true)
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
   const depthRef = useRef(0)
 
   function commitRoute(next: PortalRoute, mode: HistoryMode, scrollTop = false) {
@@ -532,13 +658,24 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
     return () => { window.removeEventListener('popstate', syncFromUrl); window.removeEventListener('pageshow', onPageShow) }
   }, [])
 
+  async function refreshPrivacy() {
+    setPrivacyLoading(true)
+    try {
+      const data = await rpcPost(CUSTOMER_PRIVACY_GET_RPC, { p_session_hash: await sha256Hex(sessionToken) })
+      setPrivacy(data || { notice_version: PRIVACY_NOTICE_VERSION, notice_seen_at: null, personalization_consent: null })
+      return data as PrivacyState | null
+    } finally { setPrivacyLoading(false) }
+  }
+
   async function refreshPortal() {
     try {
       const sessionHash = await sha256Hex(sessionToken)
-      const [data, planning, commerce] = await Promise.all([
+      const [data, planning, commerce, personalization, notifications] = await Promise.all([
         gateway({ action: 'customer_portal', session_token: sessionToken }),
         rpcPost(PLANNING_RPC, { p_session_hash: sessionHash }).catch(() => null),
         rpcPost(CUSTOMER_COMMERCE_RPC, { p_session_hash: sessionHash }).catch(() => null),
+        rpcPost(CUSTOMER_PERSONALIZATION_RPC, { p_session_hash: sessionHash }).catch(() => null),
+        rpcPost(CUSTOMER_NOTIFICATIONS_RPC, { p_session_hash: sessionHash }).catch(() => null),
       ])
       const servicePlanning = new Map<string, any>((planning?.service_requests || []).map((x: any) => [x.ticket_no, x]))
       const projectPlanning = new Map<string, any>((planning?.project_requests || []).map((x: any) => [x.request_no, x]))
@@ -546,11 +683,22 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
         service_requests: (data.service_requests || []).map((x: ServiceRequestItem) => ({ ...x, ...(servicePlanning.get(x.ticket_no) || {}) })),
         project_requests: (data.project_requests || []).map((x: ProjectRequestItem) => ({ ...x, ...(projectPlanning.get(x.request_no) || {}) })),
         installed_products: data.installed_products || [], favorites: data.favorites || [], studio_variants: data.studio_variants || [],
-        cart: commerce?.cart || [], offers: commerce?.offers || [], campaigns: commerce?.campaigns || [], support: data.support || null,
+        cart: commerce?.cart || [], offers: commerce?.offers || [], campaigns: commerce?.campaigns || [], personalization: personalization || { recent_views: [], top_materials: [], top_rooms: [], last_activity_at: null }, notifications: notifications?.items || [], unread_notifications: Number(notifications?.unread_count || 0), support: data.support || null,
       })
     } finally { setPortalLoading(false) }
   }
-  useEffect(() => { refreshPortal().catch(() => setPortalLoading(false)) }, [sessionToken])
+  useEffect(() => {
+    refreshPortal().catch(() => setPortalLoading(false))
+    refreshPrivacy().catch(() => setPrivacyLoading(false))
+  }, [sessionToken])
+
+  useEffect(() => {
+    if (privacyLoading || !privacy?.notice_seen_at) return
+    try {
+      const key = `eripek_gold_onboarding_v2_${customer.id || customer.phone}`
+      if (!localStorage.getItem(key)) setOnboardingOpen(true)
+    } catch {}
+  }, [privacyLoading, privacy?.notice_seen_at, customer.id, customer.phone])
 
   useEffect(() => {
     if (!sessionToken || !residence.id) return
@@ -568,13 +716,17 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
 
   const productCount = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length
   const showBack = route.tab === 'service' || route.tab === 'designs'
+  const requestUnread = portal.notifications.filter(n => !n.read_at && ['quote','service_status','project_status','appointment','note'].includes(n.kind)).length
 
   return <>
     <style jsx global>{`
       .dashboardScreen{padding-bottom:calc(108px + env(safe-area-inset-bottom))!important}
+      input,select,textarea{font-size:16px!important}.activationCodeInput{text-transform:uppercase;letter-spacing:.08em;font-weight:850}.small{font-size:11.5px!important;line-height:1.5!important}.eyebrow{font-size:9.5px!important;line-height:1.3!important}.nav button{font-size:10px!important}.navLabel{font-size:10px!important}
+      .privacyGate,.onboardingOverlay{position:fixed;inset:0;z-index:10020;background:rgba(26,22,18,.58);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);display:flex;align-items:flex-end;justify-content:center;padding:18px}.privacySheet,.onboardingSheet{width:min(680px,100%);max-height:92dvh;overflow:auto;background:#fbf8f2;border:1px solid rgba(255,255,255,.55);border-radius:28px 28px 18px 18px;padding:18px;box-shadow:0 -28px 90px rgba(26,20,14,.28);display:grid;gap:14px}.privacySheet h2,.onboardingSheet h2{margin:0;font:700 28px/1.08 Georgia,serif;letter-spacing:-.025em}.privacyLead,.onboardingLead{font-size:12px;line-height:1.6;color:#71665b}.privacyPrinciple{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.privacyPrinciple div{border:1px solid #e1d7ca;background:#fffdf9;border-radius:13px;padding:11px;display:grid;gap:4px}.privacyPrinciple b{font-size:11px}.privacyPrinciple span{font-size:9.5px;line-height:1.4;color:#827568}.privacyActions{display:grid;grid-template-columns:1fr;gap:8px}.privacyActions button,.onboardingActions button{border-radius:12px;padding:12px 11px;font-size:11px;font-weight:900}.privacyPrimary,.onboardingPrimary{border:0;background:#2d2924;color:#fff}.privacySecondary{border:1px solid #d8c8b2;background:#fffdf9;color:#6d512f}.privacyChoice{border:1px solid #ddcfbd;background:#fff9ef;border-radius:16px;padding:14px;display:grid;gap:8px}.privacyChoice strong{font-size:15px}.privacyChoice p{margin:0;font-size:10.5px;line-height:1.55;color:#74685d}.privacyChoiceNote{font-size:9px;line-height:1.5;color:#897b6d}.onboardingVisual{min-height:180px;border-radius:20px;background:linear-gradient(145deg,#2f2a24,#171411);color:#fff;padding:18px;display:grid;align-content:space-between;overflow:hidden;position:relative}.onboardingVisual:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(203,160,93,.32),rgba(203,160,93,0));right:-40px;bottom:-50px}.onboardingMark{font:800 22px Georgia,serif;letter-spacing:.08em;color:#e4c18a}.onboardingVisual strong{font:700 24px/1.08 Georgia,serif;max-width:420px;position:relative;z-index:1}.onboardingDots{display:flex;justify-content:center;gap:6px}.onboardingDots span{width:6px;height:6px;border-radius:50%;background:#d7cec2}.onboardingDots span.active{width:22px;border-radius:999px;background:#9a6b2d}.onboardingActions{display:grid;grid-template-columns:auto 1fr;gap:8px}.onboardingSkip{border:1px solid #ded4c7;background:#fffdf9;color:#716559}.privacyPrefsCard{display:grid;gap:12px}.privacyPrefRow{display:flex;align-items:center;justify-content:space-between;gap:14px}.privacyPrefRow>div{display:grid;gap:3px}.privacyPrefRow strong{font-size:15px}.privacyStatus{font-size:9px;font-weight:900;border-radius:999px;padding:6px 8px;background:#eee6dc;color:#6b5f53}.privacyStatus.on{background:#e1efe4;color:#347149}.privacyToggleBtn{border:1px solid #d9cbb7;background:#fffdf9;color:#6e522f;border-radius:11px;padding:10px 12px;font-size:10px;font-weight:900}.privacyDivider{height:1px;background:#e8dfd4}.privacyExplain{font-size:10px;line-height:1.55;color:#796d61}.privacyNotice summary{font-size:11px}.privacyNoticeBody p{font-size:10.5px;line-height:1.65}.registrationPrivacyHint{border:1px solid #e3d7c8;background:#fffaf2;border-radius:14px;padding:11px 12px;font-size:10px;line-height:1.55;color:#75695d}
+      @media(max-width:520px){.privacyGate,.onboardingOverlay{padding:0}.privacySheet,.onboardingSheet{border-radius:24px 24px 0 0;max-height:94dvh;padding:16px}.privacyPrinciple{grid-template-columns:1fr}.privacyActions{grid-template-columns:1fr}.onboardingActions{grid-template-columns:1fr}.onboardingVisual{min-height:165px}.privacySheet h2,.onboardingSheet h2{font-size:25px}}
       .portalBack{align-self:flex-start;border:1px solid rgba(52,44,36,.11);background:rgba(255,253,249,.88);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-radius:999px;padding:9px 13px;font-size:11px;font-weight:800;color:#4b4035;display:inline-flex;align-items:center;gap:7px;cursor:pointer;box-shadow:0 6px 20px rgba(35,28,22,.05)}
       .nav{position:fixed!important;left:50%!important;right:auto!important;bottom:0!important;transform:translateX(-50%)!important;z-index:9995!important;width:min(100%,760px)!important;margin:0!important;grid-template-columns:repeat(5,1fr)!important;gap:2px!important;padding:7px max(7px,env(safe-area-inset-right)) max(7px,env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left))!important;background:rgba(255,253,249,.94)!important;backdrop-filter:blur(22px) saturate(1.18)!important;-webkit-backdrop-filter:blur(22px) saturate(1.18)!important;box-shadow:0 -10px 34px rgba(35,28,22,.10)!important;border-top:1px solid rgba(55,45,36,.08)!important}
-      .nav button{position:relative;display:grid!important;place-items:center!important;align-content:center!important;gap:3px!important;min-height:54px!important;border-radius:14px!important;padding:5px 2px!important;font-size:8.5px!important;font-weight:750!important;color:#786e63!important;transition:background .18s ease,color .18s ease,transform .18s ease!important}
+      .nav button{position:relative;display:grid!important;place-items:center!important;align-content:center!important;gap:3px!important;min-height:54px!important;border-radius:14px!important;padding:5px 2px!important;font-size:10px!important;font-weight:750!important;color:#786e63!important;transition:background .18s ease,color .18s ease,transform .18s ease!important}
       .nav button svg{display:block;transition:transform .18s ease}.nav button.active{background:linear-gradient(180deg,#f5ead9,#efe0ca)!important;color:#785121!important}.nav button.active svg{transform:translateY(-1px)}
       .nav button.active:after{content:"";position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:#a97832}.navLabel{display:block;line-height:1;white-space:nowrap}
       .dashboardWelcome{position:relative}.dashboardWelcome .welcome{font-size:clamp(30px,7.6vw,38px);line-height:1.04;letter-spacing:-.035em}.residenceSwitcher{z-index:60}.residenceSwitcherMenu{z-index:61!important}
@@ -583,17 +735,24 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
       .commerceBanner{border:1px solid rgba(169,120,50,.18);background:linear-gradient(145deg,#fffaf1,#f5ead9);border-radius:18px;padding:16px;display:grid;gap:7px}.commerceBanner strong{font-size:17px}.commerceBanner .promoCode{display:inline-flex;width:max-content;border:1px dashed #a97832;border-radius:9px;padding:5px 8px;font-size:11px;font-weight:900;color:#7c551f}.commerceBanner a{color:#7c551f;font-weight:850;text-decoration:none}.cartSummary{display:flex;align-items:center;justify-content:space-between;gap:12px}.cartSummary b{font-size:20px}.cartAction{border:0;border-radius:12px;padding:10px 14px;font-weight:850;background:#26231f;color:#fff}.cartAction.active{background:#efe0ca;color:#785121}.offerStack{display:grid;gap:10px}
       .savedSummary{cursor:pointer;text-align:left;width:100%;border:1px solid #ded5c8;background:linear-gradient(145deg,#fffdf9,#f8f3eb);border-radius:18px;padding:17px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;color:inherit}
       .savedSummary:hover{border-color:#cdb48f}.savedSummaryMain{display:grid;gap:4px}.savedSummaryMain strong{font-size:18px}.savedSummaryCounts{display:flex;gap:7px;flex-wrap:wrap}.savedSummaryCounts span{font-size:10px;font-weight:850;color:#785121;background:#f1e3cf;border-radius:999px;padding:5px 8px}.savedSummaryArrow{font-size:28px;color:#9a6c2c}
-      .savedHero{display:grid;gap:8px;padding:5px 0 4px}.savedHero h2{margin:0}.savedTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.savedTabs button{border:1px solid #dfd7cc;background:#faf7f1;color:#6d6257;border-radius:13px;padding:11px;font-weight:850}.savedTabs button.active{background:#2d2924;color:#fff;border-color:#2d2924}.savedList{display:grid;gap:11px}.savedDesignCard{border:1px solid #e4ddd4;background:#fffdf9;border-radius:18px;padding:15px;display:grid;gap:12px}.savedDesignHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.savedDesignHead>div{display:grid;gap:3px}.savedDesignHead strong{font-size:17px}.savedDesignHead small{color:#8a7f73}.savedBadge{font-size:9px;font-weight:900;letter-spacing:.06em;border-radius:999px;padding:6px 8px;background:#f0e2ce;color:#805923;white-space:nowrap}.savedDesignActions{display:grid;grid-template-columns:1fr auto;gap:8px}.savedDesignActions button{border:0;border-radius:11px;padding:11px 12px;font-weight:850}.savedOpen{background:#2c2823;color:#fff}.savedRemove{background:#f4eee6;color:#7c5a32}.savedEmpty{border:1px dashed #d9d0c4;border-radius:18px;padding:26px 18px;text-align:center;display:grid;gap:7px;background:#fbf8f3}.savedEmpty button{margin-top:4px;border:0;border-radius:11px;padding:11px;background:#2d2924;color:#fff;font-weight:850}.savedOffer{border:1px solid #e2d4bf;background:linear-gradient(145deg,#fffaf1,#f4e6d1);border-radius:17px;padding:15px;display:grid;gap:6px}.savedOffer strong{font-size:16px}
-      @media(max-width:520px){.savedDesignActions{grid-template-columns:1fr}.savedDesignActions button{width:100%}}
+      .savedHero{display:grid;gap:8px;padding:5px 0 4px}.savedHero h2{margin:0}.savedTabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.savedTabs button{border:1px solid #dfd7cc;background:#faf7f1;color:#6d6257;border-radius:13px;padding:11px;font-weight:850}.savedTabs button.active{background:#2d2924;color:#fff;border-color:#2d2924}.savedList{display:grid;gap:11px}.savedDesignCard{border:1px solid #e4ddd4;background:#fffdf9;border-radius:18px;padding:15px;display:grid;gap:12px}.savedDesignHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.savedDesignHead>div{display:grid;gap:3px}.savedDesignHead strong{font-size:17px}.savedDesignHead small{color:#8a7f73}.savedBadge{font-size:9px;font-weight:900;letter-spacing:.06em;border-radius:999px;padding:6px 8px;background:#f0e2ce;color:#805923;white-space:nowrap}.savedDesignActions{display:grid;grid-template-columns:1fr auto;gap:8px}.savedDesignActions button{border:0;border-radius:11px;padding:11px 12px;font-weight:850}.savedOpen{background:#2c2823;color:#fff}.savedRemove{background:#f4eee6;color:#7c5a32}.savedEmpty{border:1px dashed #d9d0c4;border-radius:18px;padding:26px 18px;text-align:center;display:grid;gap:7px;background:#fbf8f3}.savedEmpty button{margin-top:4px;border:0;border-radius:11px;padding:11px;background:#2d2924;color:#fff;font-weight:850}.savedOffer{border:1px solid #e2d4bf;background:linear-gradient(145deg,#fffaf1,#f4e6d1);border-radius:17px;padding:15px;display:grid;gap:6px}.savedOffer strong{font-size:16px}.savedOfferContext{border:1px solid #e1d2bd;background:rgba(255,255,255,.62);border-radius:12px;padding:10px;display:grid;gap:3px}.savedOfferContext span{font-size:8px;font-weight:900;letter-spacing:.07em;color:#9a6c2c}.savedOfferContext strong{font-size:12px}.savedOfferContext small{font-size:9px;color:#7f7264}.offerResponseBadge{display:inline-flex;width:max-content;max-width:100%;align-items:center;border-radius:999px;padding:6px 8px;font-size:8.5px;font-weight:900;letter-spacing:.03em;background:#eee6dc;color:#665b50}.offerResponseBadge.interested{background:#e1f1e5;color:#337147}.offerResponseBadge.question{background:#e6eef7;color:#3f668a}.offerResponseBadge.declined{background:#f1e9e5;color:#8b5a4c}.offerResponseActions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:4px}.offerResponseActions button{border:1px solid #d8c7af;background:#fffdf9;color:#6f512d;border-radius:11px;padding:10px 8px;font-size:9px;font-weight:900}.offerResponseActions button.primary{background:#2d2924;color:#fff;border-color:#2d2924}.offerResponseActions button:disabled{opacity:.55}.offerNoteInput{width:100%;min-height:66px;border:1px solid #ddcfbc;background:#fffdf9;border-radius:11px;padding:10px 11px;font:inherit;font-size:10px;color:#443b32;resize:vertical;outline:none}.offerResultNote{font-size:9px;line-height:1.5;color:#6d6257;background:#fffaf2;border-radius:10px;padding:9px}.commerceOfferLink{margin-top:7px;border:0;background:#2d2924;color:#fff;border-radius:10px;padding:9px 11px;font-size:9px;font-weight:900;width:max-content}.quoteResponseBox{display:grid;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #e8dfd3}.quoteResponseBadge{display:inline-flex;width:max-content;border-radius:999px;padding:6px 8px;font-size:8.5px;font-weight:900;background:#ece6de;color:#6b6055}.quoteResponseBadge.accepted{background:#def0e3;color:#2f7545}.quoteResponseBadge.question{background:#e1edf7;color:#42698d}.quoteResponseBadge.declined{background:#f2e8e3;color:#8d5d4e}.quoteResponseActions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.quoteResponseActions button{border:1px solid #d9cbb8;background:#fffdf9;color:#6e512e;border-radius:11px;padding:10px 8px;font-size:9px;font-weight:900}.quoteResponseActions button.primary{background:#2d2924;color:#fff;border-color:#2d2924}.quoteResponseActions button:disabled{opacity:.55}.quoteResponseNote{width:100%;min-height:58px;border:1px solid #ddd0be;background:#fffdf9;border-radius:10px;padding:9px 10px;font:inherit;font-size:10px;resize:vertical}.quoteExpired{font-size:9px;color:#98604e;background:#f8ece7;border-radius:9px;padding:8px}
+
+
+      .dashboardWelcomeActions{display:flex;align-items:flex-start;gap:8px}.notificationWrap{position:relative}.notificationBell{position:relative;width:43px;height:43px;border:1px solid #ded5c9;background:#fffdf9;border-radius:14px;display:grid;place-items:center;font-size:18px;color:#3b342d;box-shadow:0 6px 20px rgba(60,43,25,.05)}.notificationBellBadge,.navBadge{position:absolute;display:grid;place-items:center;min-width:17px;height:17px;border-radius:999px;background:#8f6125;color:#fff;font-size:8px;font-weight:900;padding:0 4px;box-shadow:0 0 0 2px #f8f4ed}.notificationBellBadge{right:-5px;top:-5px}.notificationPanel{position:absolute;z-index:120;right:0;top:50px;width:min(360px,calc(100vw - 30px));max-height:min(68dvh,590px);overflow:auto;border:1px solid #ddd1c0;background:#fbf8f2;border-radius:20px;padding:12px;box-shadow:0 24px 70px rgba(36,27,18,.2);display:grid;gap:9px}.notificationPanelHead{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:3px 3px 6px}.notificationPanelHead strong{font-size:14px}.notificationPanelHead button{border:0;background:transparent;color:#8a612e;font-size:9px;font-weight:900}.notificationItem{width:100%;border:1px solid #e4dbcf;background:#fffdf9;border-radius:13px;padding:11px;text-align:left;color:inherit;display:grid;gap:4px;position:relative}.notificationItem.unread{border-color:#d5b989;background:#fff9ef}.notificationItem.unread:before{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:#a87530;right:9px;top:10px}.notificationKind{font-size:7.5px;font-weight:900;letter-spacing:.07em;color:#93672e}.notificationItem strong{font-size:11.5px;padding-right:10px}.notificationItem p{font-size:9px;line-height:1.45;color:#7d7165;margin:0}.notificationItem small{font-size:8px;color:#9a8e82}.notificationEmpty{padding:20px 10px;text-align:center;font-size:10px;color:#8c8074}.nav button{position:relative}.navBadge{right:calc(50% - 20px);top:4px;box-shadow:0 0 0 2px rgba(250,247,241,.95)}
+      .personalContinue{width:100%;border:1px solid #ddd3c5;background:linear-gradient(135deg,#fffdf9,#f5ede1);border-radius:18px;padding:16px;text-align:left;color:inherit;display:flex;align-items:center;justify-content:space-between;gap:14px}.personalContinueMain{display:grid;gap:4px;min-width:0}.personalContinueMain strong{font-size:16px}.personalContinueMain small{color:#877b6e;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.personalContinueArrow{width:34px;height:34px;border-radius:50%;background:#2d2924;color:#fff;display:grid;place-items:center;font-size:20px;flex:0 0 auto}.interestHint{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;font-size:9px;font-weight:850;color:#805923;background:#f2e4d0;border-radius:999px;padding:6px 8px}
+      .recentList{display:grid;gap:9px}.recentViewCard{border:1px solid #e2d9cd;background:#fffdf9;border-radius:15px;padding:13px;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;color:inherit;width:100%}.recentViewCard>span:first-child{display:grid;gap:3px;min-width:0}.recentViewCard strong{font-size:14px}.recentViewCard small{font-size:9px;color:#86796c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.recentViewCard b{font-size:21px;color:#9a6c2c}
+      .personalEripek{border:1px solid #d9c6a8;background:linear-gradient(145deg,#fffaf1,#f3e6d2);border-radius:20px;padding:15px;display:grid;gap:11px}.personalEripekHead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.personalEripekHead strong{font-size:17px}.personalEripekHead small{font-size:9px;color:#877666}.personalEripekGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.personalEripekCard{border:1px solid #dfd2c0;background:#fffdf9;border-radius:15px;overflow:hidden;padding:0;text-align:left;color:inherit}.personalEripekCard img{width:100%;aspect-ratio:1.35/1;object-fit:cover;display:block}.personalEripekCopy{padding:10px;display:grid;gap:3px}.personalEripekCopy strong{font-size:12px}.personalEripekCopy small{font-size:8.5px;color:#827466;line-height:1.4}.personalWhy{display:inline-flex;width:max-content;max-width:100%;font-size:8px;font-weight:900;color:#7b592c;background:#efe1cb;border-radius:999px;padding:5px 7px}
+
+      @media(max-width:520px){.savedDesignActions{grid-template-columns:1fr}.savedDesignActions button{width:100%}.personalEripekGrid{grid-template-columns:1fr 1fr}.offerResponseActions,.quoteResponseActions{grid-template-columns:1fr}.commerceOfferLink{width:100%}}
     `}</style>
     <div className="screen stack dashboardScreen">
       {showBack && <button type="button" className="portalBack" onClick={goBack} aria-label="Önceki ekrana dön">← Geri</button>}
-      <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba {firstName(customer.full_name)}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
-      {route.tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onDesigns={() => navigate('designs')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} />}
+      <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba {firstName(customer.full_name)}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div><div className="dashboardWelcomeActions"><NotificationCenter sessionToken={sessionToken} notifications={portal.notifications} unread={portal.unread_notifications} onRefresh={refreshPortal} onNavigate={kind => navigate(kind === 'offer' ? 'designs' : kind === 'system' ? 'home' : 'requests')} />{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div></div>
+      {route.tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onDesigns={() => navigate('designs')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} onOpenDesign={(room, design, material) => { const roomMatch = STUDIO_ROOMS.find(r => r.title === room)?.id || 'kitchen'; const materialMatch = STUDIO_MATERIALS.find(m => m.name === material)?.id || 'taj'; commitRoute({ tab: 'discover', roomId: roomMatch, model: resolveModel(roomMatch, design || null), materialId: materialMatch }, 'push', true) }} />}
       {route.tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onService={() => navigate('service')} />}
       {route.tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} cart={portal.cart} studioVariants={portal.studio_variants} selection={route} onSelectionChange={updateDiscover} onRefresh={refreshPortal} />}
       {route.tab === 'designs' && <DesignsTab residence={residence} sessionToken={sessionToken} portal={portal} loading={portalLoading} onRefresh={refreshPortal} onDiscover={() => navigate('discover')} onOpenDesign={(room, design, material) => { const roomMatch = STUDIO_ROOMS.find(r => r.title === room)?.id || 'kitchen'; const materialMatch = STUDIO_MATERIALS.find(m => m.name === material)?.id || 'taj'; commitRoute({ tab: 'discover', roomId: roomMatch, model: resolveModel(roomMatch, design || null), materialId: materialMatch }, 'push', true) }} />}
-      {route.tab === 'requests' && <RequestsTab residence={residence} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
+      {route.tab === 'requests' && <RequestsTab residence={residence} sessionToken={sessionToken} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {route.tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
       {route.tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={productCount} savedCount={portal.cart.length + portal.favorites.length} onProducts={() => navigate('products')} onDesigns={() => navigate('designs')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
     </div>
@@ -601,28 +760,95 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
       <button type="button" aria-label="Ana Sayfa" className={route.tab === 'home' ? 'active' : ''} onClick={() => navigate('home')}><NavIcon name="home"/><span className="navLabel">Ana Sayfa</span></button>
       <button type="button" aria-label="Ürünlerim" className={route.tab === 'products' ? 'active' : ''} onClick={() => navigate('products')}><NavIcon name="products"/><span className="navLabel">Ürünlerim</span></button>
       <button type="button" aria-label="Keşfet" className={route.tab === 'discover' ? 'active' : ''} onClick={() => navigate('discover')}><NavIcon name="discover"/><span className="navLabel">Keşfet</span></button>
-      <button type="button" aria-label="Taleplerim" className={route.tab === 'requests' ? 'active' : ''} onClick={() => navigate('requests')}><NavIcon name="requests"/><span className="navLabel">Taleplerim</span></button>
+      <button type="button" aria-label="Taleplerim" className={route.tab === 'requests' ? 'active' : ''} onClick={() => navigate('requests')}><NavIcon name="requests"/><span className="navLabel">Taleplerim</span>{requestUnread>0&&<span className="navBadge">{requestUnread>9?'9+':requestUnread}</span>}</button>
       <button type="button" aria-label="Hesabım" className={route.tab === 'account' ? 'active' : ''} onClick={() => navigate('account')}><NavIcon name="account"/><span className="navLabel">Hesabım</span></button>
     </div>
+    {!privacyLoading && privacy && !privacy.notice_seen_at && <PrivacyGate sessionToken={sessionToken} privacy={privacy} onChanged={setPrivacy} />}
+    {onboardingOpen && privacy?.notice_seen_at && <OnboardingOverlay customer={customer} residence={residence} onDone={() => { try { localStorage.setItem(`eripek_gold_onboarding_v2_${customer.id || customer.phone}`, '1') } catch {}; setOnboardingOpen(false) }} />}
   </>
+}
+
+
+
+function PrivacyGate({sessionToken,privacy,onChanged}:{sessionToken:string;privacy:PrivacyState;onChanged:(p:PrivacyState)=>void}){
+  const[busy,setBusy]=useState(false),[error,setError]=useState('')
+  async function ackNotice(){
+    setBusy(true);setError('')
+    try{
+      const ok=await rpcPost(CUSTOMER_PRIVACY_NOTICE_ACK_RPC,{p_session_hash:await sha256Hex(sessionToken),p_notice_version:PRIVACY_NOTICE_VERSION})
+      if(ok!==true)throw new Error('notice_ack_failed')
+      const next=await rpcPost(CUSTOMER_PRIVACY_GET_RPC,{p_session_hash:await sha256Hex(sessionToken)})
+      onChanged(next)
+    }catch{setError('Aydınlatma kaydı oluşturulamadı. Lütfen tekrar deneyin.')}finally{setBusy(false)}
+  }
+  return <div className="privacyGate" role="dialog" aria-modal="true" aria-label="Gizlilik ve veri kullanımı"><div className="privacySheet">
+    <div><div className="eyebrow gold">GİZLİLİK • ERİPEK GOLD</div><h2>Portal kullanım verileri hesabınızla birlikte kaydedilir.</h2></div>
+    <div className="privacyLead">Eripek Gold müşteri portalını kullandığınızda hesap ve daire bilgilerinizin yanında; ziyaret ettiğiniz bölümler, incelediğiniz oda/tasarım/taş seçenekleri, favori-sepet hareketleri, teklif ve servis etkileşimleri de kayıt altına alınır. Bu kayıtlar portalın çalışması, müşteri taleplerinin takibi, hizmet geliştirme, satış/ilgi yönetimi ve size uygun içeriklerin sıralanması amacıyla kullanılır.</div>
+    <div className="privacyPrinciple"><div><b>Hesap & daire</b><span>Ad, iletişim, konut ve oturum eşleştirmesi.</span></div><div><b>Kullanım kayıtları</b><span>Gezinme, tasarım/taş ilgisi, favori, sepet ve teklif hareketleri.</span></div><div><b>Servis & satış</b><span>Talep, garanti, randevu, teklif ve geri dönüş kayıtları.</span></div></div>
+    <PrivacyNotice open/>
+    {error&&<div className="errorBox">{error}</div>}
+    <div className="privacyActions"><button type="button" className="privacyPrimary" disabled={busy} onClick={()=>void ackNotice()}>{busy?'Kaydediliyor…':'Aydınlatma Metnini Okudum • Portalı Aç'}</button><div className="privacyChoiceNote">Bu işlem bir “pazarlama izni” değildir; portal kullanım kayıtlarının nasıl işlendiğine ilişkin aydınlatmanın gösterildiğini kaydeder.</div></div>
+  </div></div>
+}
+
+function OnboardingOverlay({customer,residence,onDone}:{customer:Customer;residence:Residence;onDone:()=>void}){
+  const[step,setStep]=useState(0)
+  const slides=[
+    {eyebrow:'ERİPEK GOLD • SİZE ÖZEL',title:`${residence.block} Blok • Daire ${residence.unit_no} dijital alanınız hazır.`,body:'Ürün ve garanti kayıtlarınız, servis talepleriniz ve dairenize özel tasarım seçimleriniz bu hesapta birlikte tutulur.'},
+    {eyebrow:'1. ÖNCELİK • ERİPEK GOLD',title:'Önce sizin daireniz için hazırlanan tasarımlar.',body:'Keşfet bölümünde Eripek Gold’a özel tasarımlar her zaman en üstte kalır. Master Porcelenta’nın diğer işleri yalnızca ikinci katmanda referans ve ilham olarak gösterilir.'},
+    {eyebrow:'TEK HESAP • TEK TAKİP',title:'Teklif, servis ve garanti güncellemelerini kaçırmayın.',body:'Yeni teklif veya işlem güncellemesi geldiğinde bildirim merkeziniz ve Taleplerim bölümü sizi yönlendirir.'},
+  ]
+  const s=slides[step]
+  return <div className="onboardingOverlay" role="dialog" aria-modal="true" aria-label="Eripek Gold kısa tanıtım"><div className="onboardingSheet">
+    <div className="onboardingVisual"><span className="onboardingMark">EG</span><strong>{s.title}</strong></div>
+    <div><div className="eyebrow gold">{s.eyebrow}</div><h2>{step===0?`Hoş geldiniz, ${firstName(customer.full_name)}.`:step===1?'Tasarım sırası nettir.':'Portalınız sizi takipte tutar.'}</h2></div>
+    <div className="onboardingLead">{s.body}</div>
+    <div className="onboardingDots">{slides.map((_,i)=><span key={i} className={i===step?'active':''}/>)}</div>
+    <div className="onboardingActions">{step>0?<button type="button" className="onboardingSkip" onClick={()=>setStep(step-1)}>Geri</button>:<button type="button" className="onboardingSkip" onClick={onDone}>Atla</button>}<button type="button" className="onboardingPrimary" onClick={()=>step<slides.length-1?setStep(step+1):onDone()}>{step<slides.length-1?'Devam Et':'Portalımı Aç'}</button></div>
+  </div></div>
+}
+
+function NotificationCenter({sessionToken,notifications,unread,onRefresh,onNavigate}:{sessionToken:string;notifications:NotificationItem[];unread:number;onRefresh:()=>Promise<void>;onNavigate:(kind:NotificationItem['kind'])=>void}){
+  const[open,setOpen]=useState(false),[busy,setBusy]=useState(false)
+  function kindLabel(k:NotificationItem['kind']){return ({offer:'ÖZEL TEKLİF',quote:'FİYAT TEKLİFİ',service_status:'SERVİS',project_status:'PROJE',appointment:'RANDEVU',note:'YENİ NOT',system:'BİLDİRİM'} as Record<string,string>)[k]||'BİLDİRİM'}
+  async function mark(id?:string,all=false){const ok=await rpcPost(CUSTOMER_NOTIFICATION_READ_RPC,{p_session_hash:await sha256Hex(sessionToken),p_notification_id:id||null,p_mark_all:all});if(ok===true)await onRefresh()}
+  async function openItem(n:NotificationItem){if(!n.read_at){setBusy(true);try{await mark(n.id,false)}finally{setBusy(false)}}setOpen(false);onNavigate(n.kind)}
+  async function markAll(){setBusy(true);try{await mark(undefined,true)}finally{setBusy(false)}}
+  return <div className="notificationWrap">
+    <button type="button" className="notificationBell" aria-label={`Bildirimler${unread?`, ${unread} okunmamış`:''}`} onClick={()=>setOpen(v=>!v)}><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>{unread>0&&<span className="notificationBellBadge">{unread>9?'9+':unread}</span>}</button>
+    {open&&<div className="notificationPanel"><div className="notificationPanelHead"><strong>Bildirimler</strong>{unread>0&&<button type="button" disabled={busy} onClick={()=>void markAll()}>Tümünü okundu işaretle</button>}</div>{notifications.length?notifications.slice(0,15).map(n=><button type="button" key={n.id} className={n.read_at?'notificationItem':'notificationItem unread'} onClick={()=>void openItem(n)}><span className="notificationKind">{kindLabel(n.kind)}</span><strong>{n.title}</strong>{n.body&&<p>{n.body}</p>}<small>{dateTimeTR(n.created_at)}</small></button>):<div className="notificationEmpty">Henüz bildiriminiz yok.</div>}</div>}
+  </div>
 }
 
 function ResidenceSwitcher({ residences, residence, onChange }: { residences: Residence[]; residence: Residence; onChange: (residence: Residence) => void }) {
   return <details className="residenceSwitcher"><summary><span className="small muted">Aktif daire</span><strong>{residence.block}-{residence.unit_no}</strong><b>⌄</b></summary><div className="residenceSwitcherMenu">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={e => { onChange(r); const d = e.currentTarget.closest('details') as HTMLDetailsElement | null; if (d) d.open = false }}><span><strong>{r.block} Blok • Daire {r.unit_no}</strong><small>{r.floor}. Kat</small></span>{r.id === residence.id && <em>✓</em>}</button>)}</div></details>
 }
 
-function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onDesigns, onRequests, onProducts }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onDesigns: () => void; onRequests: () => void; onProducts: () => void }) {
+function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onDesigns, onRequests, onProducts, onOpenDesign }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onDesigns: () => void; onRequests: () => void; onProducts: () => void; onOpenDesign: (room?: string | null, design?: string | null, material?: string | null) => void }) {
   const months = residence.default_warranty_months || 12, warrantyEnd = warrantyEndDate(residence.delivery_date, months)
   const products = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)
+  const lastViewed = portal.personalization.recent_views[0] || null
+  const favoriteMaterial = portal.personalization.top_materials[0]?.material_name || null
+  const unreadOffers = portal.notifications.filter(n => !n.read_at && n.kind === 'offer').length
+  const recommendedEripek = portal.personalization.top_materials
+    .map(score => {
+      const mat = STUDIO_MATERIALS.find(m => m.name === score.material_name)
+      const preview = mat ? CURATED_PREVIEWS.find(p => p.roomId === 'kitchen' && p.materialId === mat.id) : null
+      return mat && preview ? { mat, preview, score: score.score } : null
+    })
+    .filter(Boolean)
+    .slice(0, 2) as Array<{ mat: StudioMaterial; preview: (typeof CURATED_PREVIEWS)[number]; score: number }>
   const recent = [
     ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ kind: 'Servis', no: x.ticket_no, status: SERVICE_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
     ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ kind: x.request_type || 'Proje', no: x.request_no, status: PROJECT_STATUS_LABELS[x.status] || x.status, created_at: x.created_at })),
   ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 2)
   return <>
-    <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
-    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0,2).map(o => <div className="commerceBanner" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <div><b>{o.discount_type === 'percent' ? `%${o.discount_value}` : `${moneyTR(Number(o.discount_value))}`} indirim</b></div> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}</div>)}</div>}
+    <div className="dashHero"><div><div className="eyebrow">ERİPEK GOLD • DAİRENİZE ÖZEL</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Önce Eripek Gold için hazırlanan tasarımlarınızı inceleyin; modeli seçin, taşı değiştirin ve kendi daireniz için karar verin.</div></div></div>
+    {lastViewed && <button type="button" className="personalContinue" onClick={() => onOpenDesign(lastViewed.room, lastViewed.design_name, lastViewed.material_name)}><span className="personalContinueMain"><span className="eyebrow gold">KALDIĞINIZ YERDEN</span><strong>{lastViewed.design_name || lastViewed.room || 'Son baktığınız tasarım'}</strong><small>{[lastViewed.room,lastViewed.material_name].filter(Boolean).join(' • ')}</small>{favoriteMaterial && <span className="interestHint">İlginizi çeken taş: {favoriteMaterial}</span>}</span><span className="personalContinueArrow">›</span></button>}
+    {recommendedEripek.length > 0 && <div className="personalEripek"><div className="personalEripekHead"><div><div className="eyebrow gold">SİZİN İÇİN • ERİPEK GOLD</div><strong>Dairenize özel öneriler</strong></div><small>Son ilginize göre</small></div><div className="personalEripekGrid">{recommendedEripek.map(({mat,preview}) => <button type="button" className="personalEripekCard" key={preview.id} onClick={() => onOpenDesign('Mutfak', preview.model, mat.name)}><img src={preview.image} alt={`${mat.name} Eripek Gold mutfak tasarımı`} loading="lazy" decoding="async"/><span className="personalEripekCopy"><span className="personalWhy">{mat.name} ilginize göre</span><strong>Eripek Gold • Mutfak</strong><small>{preview.model} • {mat.name}</small></span></button>)}</div></div>}
+    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0,2).map(o => <div className="commerceBanner" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.context?.design_name && <div className="small"><b>{[o.context.room,o.context.design_name,o.context.material_name].filter(Boolean).join(' • ')}</b></div>}{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <div><b>{o.discount_type === 'percent' ? `%${o.discount_value}` : `${moneyTR(Number(o.discount_value))}`} indirim</b></div> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.response_status && o.response_status !== 'pending' && <span className={`offerResponseBadge ${o.response_status}`}>{o.response_status === 'interested' ? '✓ İlginiz iletildi' : o.response_status === 'question' ? 'Danışman talebiniz iletildi' : 'Şimdilik düşünmüyorsunuz'}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}<button type="button" className="commerceOfferLink" onClick={onDesigns}>Teklifi İncele</button></div>)}</div>}
     {portal.campaigns.length > 0 && portal.campaigns.slice(0,1).map(c => <div className="commerceBanner" key={c.id}><div className="eyebrow gold">ERİPEK GOLD KAMPANYA</div><strong>{c.title}</strong>{c.subtitle && <div className="small">{c.subtitle}</div>}{c.body && <div className="small muted">{c.body}</div>}{c.cta_url && <a href={c.cta_url} target={c.cta_url.startsWith('http') ? '_blank' : undefined} rel="noreferrer">{c.cta_label || 'İncele'} →</a>}</div>)}
-    {(portal.cart.length > 0 || portal.favorites.length > 0) && <button type="button" className="savedSummary" onClick={onDesigns}><div className="savedSummaryMain"><div className="eyebrow gold">TASARIMLARIM</div><strong>Kaydettiklerinizi görüntüleyin</strong><div className="savedSummaryCounts">{portal.cart.length > 0 && <span>Sepet {portal.cart.length}</span>}{portal.favorites.length > 0 && <span>Favori {portal.favorites.length}</span>}</div><div className="small muted">İlgilendiğiniz tasarımlar ve size özel teklifler tek yerde.</div></div><div className="savedSummaryArrow">›</div></button>}
+    {(portal.cart.length > 0 || portal.favorites.length > 0 || unreadOffers > 0) && <button type="button" className="savedSummary" onClick={onDesigns}><div className="savedSummaryMain"><div className="eyebrow gold">TASARIMLARIM</div><strong>{unreadOffers>0 ? 'Yeni teklifiniz var' : 'Kaydettiklerinizi görüntüleyin'}</strong><div className="savedSummaryCounts">{unreadOffers>0&&<span>Yeni teklif {unreadOffers}</span>}{portal.cart.length > 0 && <span>Sepet {portal.cart.length}</span>}{portal.favorites.length > 0 && <span>Favori {portal.favorites.length}</span>}</div><div className="small muted">İlgilendiğiniz tasarımlar ve size özel teklifler tek yerde.</div></div><div className="savedSummaryArrow">›</div></button>}
     <div className="grid2"><div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date ? <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div> : <div className="small warrantyPending">Montaj tarihi sisteme işlendiğinde garanti takviminiz burada görünecek.</div>}</div><button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button></div>
     <button className="card productsSummaryCard" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div className="productsSummaryBody"><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{portalLoading ? 'Ürün kayıtları yükleniyor…' : products.length ? `${products.length} ürün kayıtlı` : 'Ürün kayıtlarınızı görüntüleyin'}</strong><div className="small muted">{residence.delivery_date ? `Garanti ${warrantyEnd} tarihine kadar` : 'Ürün, ölçü ve garanti detayları'}</div></div><div className="productsSummaryArrow">›</div></button>
     <button className="card latestRequestsCard" onClick={onRequests}><div className="sectionRow"><div><div className="eyebrow gold">TALEPLERİM</div><strong>Son işlemleriniz</strong></div><b>›</b></div>{portalLoading ? <div className="small muted">Talepler yükleniyor…</div> : recent.length ? <div className="latestRequestList">{recent.map(x => <div key={x.no}><span>{x.kind}</span><strong>{x.status}</strong><small>{x.no}</small></div>)}</div> : <div className="small muted">Henüz servis veya proje talebiniz bulunmuyor.</div>}</button>
@@ -634,11 +860,36 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onDe
 
 
 function DesignsTab({ residence, sessionToken, portal, loading, onRefresh, onDiscover, onOpenDesign }: { residence: Residence; sessionToken: string; portal: PortalData; loading: boolean; onRefresh: () => Promise<void>; onDiscover: () => void; onOpenDesign: (room?: string | null, design?: string | null, material?: string | null) => void }) {
-  const [view, setView] = useState<'cart' | 'favorites'>('cart')
+  const [view, setView] = useState<'cart' | 'favorites' | 'recent'>('cart')
   const [busyId, setBusyId] = useState('')
+  const [offerBusyId, setOfferBusyId] = useState('')
+  const [offerNotes, setOfferNotes] = useState<Record<string,string>>({})
   const residenceCart = portal.cart.filter(x => !x.residence_id || x.residence_id === residence.id)
   const residenceFavorites = portal.favorites.filter(x => !x.residence_id || x.residence_id === residence.id)
+  const recentViews = portal.personalization.recent_views
   const items = view === 'cart' ? residenceCart : residenceFavorites
+
+  function offerResponseLabel(status?: CustomerOffer['response_status']) {
+    if (status === 'interested') return 'İlgilendiğinizi ilettiniz'
+    if (status === 'question') return 'Danışman görüşmesi istediniz'
+    if (status === 'declined') return 'Şimdilik düşünmüyorsunuz'
+    return 'Yanıtınızı bekliyoruz'
+  }
+
+  async function respondOffer(offer: CustomerOffer, response: 'interested'|'question'|'declined') {
+    setOfferBusyId(offer.id)
+    try {
+      const ok = await rpcPost(CUSTOMER_OFFER_RESPONSE_RPC, {
+        p_session_hash: await sha256Hex(sessionToken),
+        p_offer_id: offer.id,
+        p_response: response,
+        p_note: (offerNotes[offer.id] || '').trim() || null,
+      })
+      if (ok !== true) throw new Error('offer_response_failed')
+      setOfferNotes(prev => ({...prev,[offer.id]:''}))
+      await onRefresh()
+    } finally { setOfferBusyId('') }
+  }
 
   async function removeFromCart(item: CartItem) {
     if (!residence.id) return
@@ -676,17 +927,34 @@ function DesignsTab({ residence, sessionToken, portal, loading, onRefresh, onDis
     <div className="savedHero">
       <div className="eyebrow gold">TASARIMLARIM</div>
       <h2 className="welcome">İlgi listeniz</h2>
-      <div className="small muted">Beğendiğiniz ve teklif almak için sepete eklediğiniz tasarımları burada yönetebilirsiniz.</div>
+      <div className="small muted">Sepetinizi, favorilerinizi ve son incelediğiniz tasarımları tek yerde yönetin.</div>
     </div>
 
-    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0, 3).map(o => <div className="savedOffer" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <b>{o.discount_type === 'percent' ? `%${o.discount_value}` : moneyTR(Number(o.discount_value))} indirim</b> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}</div>)}</div>}
+    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0, 5).map(o => <div className="savedOffer" key={o.id}>
+      <div className="eyebrow gold">SİZE ÖZEL ERİPEK GOLD TEKLİFİ</div>
+      <strong>{o.title}</strong>
+      {o.context?.design_name && <div className="savedOfferContext"><span>TEKLİFİNİZİN BAĞLI OLDUĞU SEÇİM</span><strong>{o.context.design_name}</strong><small>{[o.context.room,o.context.material_name].filter(Boolean).join(' • ')}</small></div>}
+      {o.message && <div className="small muted">{o.message}</div>}
+      {o.discount_value ? <b>{o.discount_type === 'percent' ? `%${o.discount_value}` : moneyTR(Number(o.discount_value))} indirim</b> : null}
+      {o.promo_code && <span className="promoCode">{o.promo_code}</span>}
+      <span className={`offerResponseBadge ${o.response_status || 'pending'}`}>{offerResponseLabel(o.response_status)}</span>
+      {o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}
+      <textarea className="offerNoteInput" value={offerNotes[o.id] || ''} onChange={e => setOfferNotes(prev => ({...prev,[o.id]:e.target.value}))} placeholder="Teklif hakkında eklemek istediğiniz not (opsiyonel)" />
+      <div className="offerResponseActions">
+        <button type="button" className="primary" disabled={offerBusyId===o.id} onClick={() => void respondOffer(o,'interested')}>{offerBusyId===o.id?'İletiliyor…':'İlgileniyorum'}</button>
+        <button type="button" disabled={offerBusyId===o.id} onClick={() => void respondOffer(o,'question')}>Danışmana Sor</button>
+        <button type="button" disabled={offerBusyId===o.id} onClick={() => void respondOffer(o,'declined')}>Şimdilik Değil</button>
+      </div>
+      {o.responded_at && <div className="offerResultNote">Son yanıtınız {dateTimeTR(o.responded_at)} tarihinde kaydedildi. Yanıtınızı yukarıdaki seçeneklerden biriyle güncelleyebilirsiniz.</div>}
+    </div>)}</div>}
 
-    <div className="savedTabs" role="tablist" aria-label="Kaydedilen tasarımlar">
+    <div className="savedTabs" role="tablist" aria-label="Tasarımlarım">
       <button type="button" className={view === 'cart' ? 'active' : ''} onClick={() => setView('cart')}>Sepetim ({residenceCart.length})</button>
       <button type="button" className={view === 'favorites' ? 'active' : ''} onClick={() => setView('favorites')}>Favorilerim ({residenceFavorites.length})</button>
+      <button type="button" className={view === 'recent' ? 'active' : ''} onClick={() => setView('recent')}>Son Baktıklarım ({recentViews.length})</button>
     </div>
 
-    {loading ? <div className="card"><div className="small muted">Tasarımlarınız yükleniyor…</div></div> : items.length ? <div className="savedList">
+    {view === 'recent' ? (loading ? <div className="card"><div className="small muted">Geçmişiniz yükleniyor…</div></div> : recentViews.length ? <div className="recentList">{recentViews.map((item, i) => <button type="button" className="recentViewCard" key={`${item.room}-${item.design_name}-${item.material_name}-${i}`} onClick={() => onOpenDesign(item.room,item.design_name,item.material_name)}><span><span className="small muted">{item.room || 'Tasarım'}</span><strong>{item.design_name || 'Porselen Tasarımı'}</strong><small>{item.material_name || 'Malzeme seçimi'}{item.created_at ? ` • ${dateTimeTR(item.created_at)}` : ''}</small></span><b>›</b></button>)}</div> : <div className="savedEmpty"><strong>Henüz görüntüleme geçmişiniz yok</strong><div className="small muted">Keşfet bölümünde incelediğiniz tasarımlar burada görünür.</div><button type="button" onClick={onDiscover}>Tasarımları Keşfet</button></div>) : loading ? <div className="card"><div className="small muted">Tasarımlarınız yükleniyor…</div></div> : items.length ? <div className="savedList">
       {items.map(item => <div className="savedDesignCard" key={item.id}>
         <div className="savedDesignHead">
           <div><div className="small muted">{item.room || 'Tasarım'}</div><strong>{item.design_name || 'Porselen Tasarımı'}</strong><small>{item.material_name || 'Malzeme seçimi'}</small></div>
@@ -941,10 +1209,16 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
 
 function DiscoverTab({ residence, sessionToken, favorites, cart, studioVariants, selection, onSelectionChange, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; cart: CartItem[]; studioVariants: StudioVariant[]; selection: DiscoverSelection; onSelectionChange: (next: DiscoverSelection, mode?: HistoryMode) => void; onRefresh: () => Promise<void> }) {
   const { roomId, model, materialId } = selection
-  const [requestType, setRequestType] = useState(PROJECT_REQUEST_TYPES[0])
+  const [requestType, setRequestType] = useState<(typeof PROJECT_REQUEST_TYPES)[number]>(PROJECT_REQUEST_TYPES[0])
   const [notes, setNotes] = useState(''), [requestNo, setRequestNo] = useState(''), [requestMsg, setRequestMsg] = useState('')
   const [favoriteBusy, setFavoriteBusy] = useState(false), [cartBusy, setCartBusy] = useState(false), [busy, setBusy] = useState(false)
-  const [viewer, setViewer] = useState<'preview' | 'slab' | null>(null)
+  const [viewer, setViewer] = useState<'preview' | 'slab' | 'reference' | null>(null)
+  const [selectedReference, setSelectedReference] = useState<ReferenceProject | null>(null)
+  const [referenceIndex, setReferenceIndex] = useState(0)
+  const [materialSearch, setMaterialSearch] = useState('')
+  const [surfaceFilter, setSurfaceFilter] = useState<'all' | 'Parlak' | 'Mat' | 'Saten'>('all')
+  const [compareMaterialId, setCompareMaterialId] = useState<MaterialId | null>(null)
+  const [materialDetailId, setMaterialDetailId] = useState<MaterialId | null>(null)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
@@ -955,12 +1229,54 @@ function DiscoverTab({ residence, sessionToken, favorites, cart, studioVariants,
   const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
   const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
   const previewFullImage = curatedPreview?.fullImage || previewImage
+  const filteredMaterials = STUDIO_MATERIALS.filter(item => {
+    const q = materialSearch.trim().toLocaleLowerCase('tr-TR')
+    const matchesText = !q || `${item.name} ${item.note} ${item.surface} ${item.productCode}`.toLocaleLowerCase('tr-TR').includes(q)
+    const matchesSurface = surfaceFilter === 'all' || item.surface === surfaceFilter
+    return matchesText && matchesSurface
+  })
+  const compareMaterial = compareMaterialId ? STUDIO_MATERIALS.find(item => item.id === compareMaterialId) || null : null
+  const detailMaterial = materialDetailId ? STUDIO_MATERIALS.find(item => item.id === materialDetailId) || null : null
+  const referenceProjects = REFERENCE_PROJECTS.filter(item => item.category === roomId)
+  const selectedReferenceImage = selectedReference?.gallery[Math.min(referenceIndex, Math.max(0, (selectedReference?.gallery.length || 1) - 1))] || selectedReference?.image || null
 
-  useEffect(() => { setRequestNo(''); setRequestMsg(''); setViewer(null) }, [roomId, model, materialId])
+  useEffect(() => { setRequestNo(''); setRequestMsg(''); setViewer(null); setSelectedReference(null); setReferenceIndex(0); setMaterialDetailId(null); if (roomId !== 'kitchen') setRequestType('Yeni proje danışmanlığı') }, [roomId, model, materialId])
 
   function chooseRoom(id: StudioRoomId) { onSelectionChange({ roomId: id, model: STUDIO_MODELS[id][0], materialId }, 'push') }
   function chooseModel(nextModel: string) { onSelectionChange({ roomId, model: nextModel, materialId }, 'replace') }
-  function chooseMaterial(nextMaterial: MaterialId) { onSelectionChange({ roomId, model, materialId: nextMaterial }, 'replace') }
+  function chooseMaterial(nextMaterial: MaterialId) { onSelectionChange({ roomId, model, materialId: nextMaterial }, 'replace'); if (compareMaterialId === nextMaterial) setCompareMaterialId(null) }
+  async function openReference(item: ReferenceProject, startIndex = 0) {
+    setSelectedReference(item)
+    setReferenceIndex(Math.max(0, Math.min(startIndex, item.gallery.length - 1)))
+    setViewer('reference')
+    const hash = await sha256Hex(sessionToken).catch(() => '')
+    if (hash) rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: hash, p_event_type: 'reference_detail', p_tab: 'discover', p_room: room.title, p_design_name: item.title, p_material_name: null, p_entity_id: item.id, p_metadata: { source: 'master_porcelenta_reference', image_count: item.gallery.length } }).catch(() => null)
+  }
+  async function requestReference(item: ReferenceProject) {
+    setRequestType('Bu tasarımı evime uygula')
+    setNotes(`${item.title} Master Porcelenta referans uygulamasına benzer bir çalışma istiyorum.`)
+    setViewer(null)
+    setSelectedReference(null)
+    setReferenceIndex(0)
+    const hash = await sha256Hex(sessionToken).catch(() => '')
+    if (hash) rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: hash, p_event_type: 'sales_intent', p_tab: 'discover', p_room: room.title, p_design_name: item.title, p_material_name: null, p_entity_id: residence.id, p_metadata: { request_type: 'Bu tasarımı evime uygula', source: 'reference_detail', reference_id: item.id } }).catch(() => null)
+    setTimeout(() => document.getElementById('project-lead-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
+  async function openMaterialDetail(id: MaterialId) {
+    const target = STUDIO_MATERIALS.find(m => m.id === id)
+    if (!target) return
+    setMaterialDetailId(id)
+    const hash = await sha256Hex(sessionToken).catch(() => '')
+    if (hash) rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: hash, p_event_type: 'material_detail', p_tab: 'discover', p_room: room.title, p_design_name: model, p_material_name: target.name, p_entity_id: target.productCode, p_metadata: { source: 'material_detail' } }).catch(() => null)
+  }
+  async function prepareSalesIntent(kind: (typeof PROJECT_REQUEST_TYPES)[number], targetMaterial: StudioMaterial = material, source = 'quick_action') {
+    setRequestType(kind)
+    setNotes(`${targetMaterial.name} porseleni ile ${room.title.toLocaleLowerCase('tr-TR')} uygulaması için ${kind.toLocaleLowerCase('tr-TR')} istiyorum.`)
+    setMaterialDetailId(null)
+    const hash = await sha256Hex(sessionToken).catch(() => '')
+    if (hash) rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: hash, p_event_type: 'sales_intent', p_tab: 'discover', p_room: room.title, p_design_name: model, p_material_name: targetMaterial.name, p_entity_id: residence.id, p_metadata: { request_type: kind, source } }).catch(() => null)
+    setTimeout(() => document.getElementById('project-lead-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
   function openFavorite(f: FavoriteItem) {
     const targetRoom = STUDIO_ROOMS.find(r => r.title === f.room); if (!targetRoom) return
     const targetMaterial = STUDIO_MATERIALS.find(m => m.name === f.material_name)
@@ -990,7 +1306,7 @@ function DiscoverTab({ residence, sessionToken, favorites, cart, studioVariants,
   async function createProjectRequest() {
     setRequestMsg(''); setRequestNo(''); setBusy(true)
     try {
-      const data = await gateway({ action: 'project_request_create', session_token: sessionToken, residence_id: residence.id, request_type: requestType, room: room.title, design_name: model, material_name: material.name, notes: notes.trim() })
+      const data = await gateway({ action: 'project_request_create', session_token: sessionToken, residence_id: residence.id, request_type: requestType, room: room.title, design_name: roomId === 'kitchen' ? model : 'Özel tasarım talebi', material_name: roomId === 'kitchen' ? material.name : null, notes: notes.trim() })
       setRequestNo(data.request.request_no); setNotes(''); await onRefresh()
     } catch { setRequestMsg('Talebiniz oluşturulamadı. Lütfen tekrar deneyin.') }
     finally { setBusy(false) }
@@ -1002,38 +1318,109 @@ function DiscoverTab({ residence, sessionToken, favorites, cart, studioVariants,
       .materialSpecs{display:flex;flex-wrap:wrap;gap:5px;margin:4px 0}.materialSpecs span{font-size:8.5px;font-weight:800;color:#775c39;background:#f5ead9;border:1px solid #e6d3b5;border-radius:999px;padding:4px 7px}.productCodeLine{font-size:9px;color:#8c8174;margin-top:1px}.realSlabVisual{cursor:zoom-in}.realSlabCard{transition:border-color .18s ease,box-shadow .18s ease}.realSlabCard:hover{border-color:#d1b07c;box-shadow:0 10px 28px rgba(83,61,34,.07)}
       .kaleSourceLine{display:inline-flex;align-items:center;gap:6px;width:max-content;max-width:100%;color:#665f57;text-decoration:none;font-size:10px;font-weight:700;border:1px solid rgba(44,40,35,.1);background:#fff;border-radius:999px;padding:5px 8px}.kaleWordmark{display:inline-flex;align-items:center;gap:4px;color:#242228;white-space:nowrap}.kaleWordmark b{font-size:11px}.kaleCastleMark{width:13px;height:13px;display:block;fill:#e74635}.slabZoomHint{position:absolute;right:7px;bottom:7px;background:rgba(31,28,24,.78);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:5px 8px;font-size:8px;font-weight:800;backdrop-filter:blur(7px)}
       @media(max-width:720px){.previewOpenButton{right:10px;top:10px;padding:6px 8px;font-size:8px}}
+      .comingSoonPanel{position:relative;overflow:hidden;border:1px solid #e3d8c9;background:linear-gradient(145deg,#fffdf9 0%,#f7f0e5 100%);border-radius:22px;padding:24px 20px;display:grid;gap:14px;box-shadow:0 12px 38px rgba(54,40,25,.055)}
+      .comingSoonPanel:after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;right:-72px;top:-95px;background:radial-gradient(circle,rgba(190,146,80,.18),rgba(190,146,80,0) 70%);pointer-events:none}
+      .comingSoonIcon{width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:#efe2cf;color:#8b6127;font:800 17px Georgia,serif;border:1px solid #e1c9a5}
+      .comingSoonPanel h3{font:700 25px/1.08 Georgia,serif;margin:0;max-width:330px}.comingSoonPanel p{margin:0;line-height:1.55;color:#776c61;font-size:12px;max-width:500px}
+      .comingSoonMeta{display:flex;gap:6px;flex-wrap:wrap}.comingSoonMeta span{font-size:9px;font-weight:850;border:1px solid #e3d6c5;background:rgba(255,255,255,.72);border-radius:999px;padding:6px 8px;color:#755630}
+      .comingSoonActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.comingSoonActions button{border-radius:12px;padding:12px 11px;font-weight:850;font-size:11px}.comingSoonPrimary{border:0;background:#2d2924;color:#fff}.comingSoonSecondary{border:1px solid #d9cec0;background:#fffaf4;color:#66594b}
+      .launchNote{border:1px solid #eadfce;background:#fbf7f1;border-radius:14px;padding:12px 13px;display:flex;gap:10px;align-items:flex-start}.launchNoteDot{width:8px;height:8px;border-radius:50%;background:#b68136;margin-top:4px;flex:0 0 auto}.launchNote strong{display:block;font-size:11px}.launchNote div div{font-size:9.5px;color:#8b7f73;margin-top:2px;line-height:1.45}
+      .discoverTools{display:grid;gap:9px}.discoverSearch{width:100%;border:1px solid #ddd3c6;background:#fffdf9;border-radius:13px;padding:12px 13px;font-size:13px;outline:none}.surfaceFilters{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}.surfaceFilters::-webkit-scrollbar{display:none}.surfaceFilters button{flex:0 0 auto;border:1px solid #e0d6ca;background:#fbf7f1;color:#72675c;border-radius:999px;padding:7px 10px;font-size:9px;font-weight:850}.surfaceFilters button.active{background:#2d2924;color:#fff;border-color:#2d2924}
+      .materialOptionWrap{display:grid;grid-template-columns:1fr auto;gap:6px;align-items:stretch}.materialCompareBtn{border:1px solid #dfd3c3;background:#fff9f0;color:#7c5727;border-radius:12px;padding:0 9px;font-size:9px;font-weight:900;white-space:nowrap}.materialCompareBtn.active{background:#9b6c2e;color:#fff;border-color:#9b6c2e}.materialEmpty{border:1px dashed #d9cdbf;border-radius:14px;padding:18px;text-align:center;color:#8c8074;font-size:11px}
+      .comparePanel{border:1px solid #dfd2c0;background:linear-gradient(145deg,#fffdf9,#f7eee2);border-radius:20px;padding:16px;display:grid;gap:12px}.compareHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.compareHead button{border:0;background:#eee4d6;color:#705a3d;border-radius:999px;width:28px;height:28px;font-weight:900}.compareGrid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.compareCard{background:rgba(255,255,255,.72);border:1px solid #e6dccf;border-radius:14px;padding:11px;display:grid;gap:7px}.compareCard img{width:100%;aspect-ratio:1.55/1;object-fit:cover;border-radius:10px}.compareCard strong{font-size:13px}.compareSpecs{display:grid;gap:4px}.compareSpecs div{display:flex;justify-content:space-between;gap:6px;font-size:9px;color:#827569}.compareSpecs b{color:#40382f}.compareWinner{font-size:9px;color:#7a582b;line-height:1.5}
+      .categoryHint{font-size:9px;color:#8c8175;margin-top:3px}
+      .materialOptionWrap{grid-template-columns:1fr auto auto}.materialDetailBtn{border:1px solid #ddd0be;background:#fffdf9;color:#655849;border-radius:12px;padding:0 9px;font-size:9px;font-weight:900;white-space:nowrap}.materialDetailBtn:hover{border-color:#bf9b67}
+      .materialMoreBtn{margin-top:9px;border:1px solid #d9c9b4;background:#fffaf2;color:#725126;border-radius:11px;padding:10px 12px;font-size:10px;font-weight:900}
+      .materialDetailOverlay{position:fixed;inset:0;z-index:140;background:rgba(24,21,18,.52);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;padding:18px}.materialDetailSheet{width:min(680px,100%);max-height:min(88dvh,840px);overflow:auto;background:#fbf8f2;border:1px solid rgba(255,255,255,.65);border-radius:26px 26px 18px 18px;box-shadow:0 -24px 70px rgba(26,21,15,.22);padding:18px;display:grid;gap:16px;overscroll-behavior:contain}.materialDetailTop{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.materialDetailTop h3{font:700 28px/1.05 Georgia,serif;margin:3px 0 0}.materialDetailClose{border:0;width:36px;height:36px;border-radius:50%;background:#ebe3d7;color:#3c342c;font-size:23px;line-height:1}.materialDetailHero{width:100%;aspect-ratio:1.7/1;object-fit:cover;border-radius:18px;border:1px solid #e0d6c9;background:#eee}.materialDetailGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px}.materialInfoCard{border:1px solid #e1d7c9;background:#fffdf9;border-radius:14px;padding:12px;display:grid;gap:4px}.materialInfoCard span{font-size:8.5px;color:#8a7b6b;font-weight:800;text-transform:uppercase;letter-spacing:.05em}.materialInfoCard strong{font-size:12px;line-height:1.35}.materialDetailSection{display:grid;gap:8px}.materialDetailSection>strong{font-size:13px}.materialDetailSection p{margin:0;font-size:11px;line-height:1.6;color:#75695d}.materialChipList{display:flex;gap:6px;flex-wrap:wrap}.materialChipList span{font-size:9px;font-weight:800;color:#71532e;background:#f0e3d1;border:1px solid #e2ceb0;border-radius:999px;padding:6px 8px}.materialSalesBox{border:1px solid #dfcfb8;background:linear-gradient(145deg,#fffaf2,#f3e6d3);border-radius:18px;padding:14px;display:grid;gap:10px}.materialSalesBox strong{font-size:15px}.materialSalesActions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.materialSalesActions button{border:0;border-radius:11px;padding:11px 8px;font-size:9.5px;font-weight:900}.materialSalesPrimary{background:#2d2924;color:#fff}.materialSalesSoft{background:#fffdf9;color:#725126;border:1px solid #dccab1!important}.materialDisclaimer{font-size:8.5px;color:#938576;line-height:1.45}
+      .quickSales{border:1px solid #e1d5c5;background:#fbf6ef;border-radius:17px;padding:14px;display:grid;gap:9px}.quickSalesHead{display:flex;justify-content:space-between;gap:12px;align-items:center}.quickSalesHead strong{font-size:13px}.quickSalesHead span{font-size:9px;color:#8a7d70}.quickSalesActions{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.quickSalesActions button{border:1px solid #ddcfbd;background:#fffdf9;border-radius:11px;padding:10px 7px;font-size:9.5px;font-weight:900;color:#6e5331}.quickSalesActions button:first-child{background:#2d2924;color:#fff;border-color:#2d2924}
+      .eripekPriority{border:1px solid #d8c29d;background:linear-gradient(145deg,#fffaf1 0%,#f3e5cf 100%);border-radius:18px;padding:14px 15px;display:flex;align-items:center;justify-content:space-between;gap:14px;box-shadow:0 10px 30px rgba(90,59,23,.05)}.eripekPriorityMain{display:grid;gap:4px}.eripekPriorityMain strong{font-size:14px}.eripekPriorityMain small{font-size:9.5px;line-height:1.45;color:#7f7060}.eripekPriorityMark{flex:0 0 auto;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:#2d2924;color:#fff;font:800 12px Georgia,serif;letter-spacing:.06em}
+      .referenceDivider{display:flex;align-items:center;gap:10px;margin-top:4px}.referenceDivider:before,.referenceDivider:after{content:"";height:1px;background:#e6dccf;flex:1}.referenceDivider span{font-size:8px;font-weight:900;letter-spacing:.08em;color:#9a8b7a;white-space:nowrap}
+      .referenceSection{display:grid;gap:12px;opacity:.97}.referenceHeader{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}.referenceHeader>div{display:grid;gap:3px}.referenceHeader strong{font-size:18px}.referenceNotice{font-size:9px;color:#8b7d6e;line-height:1.45;max-width:300px;text-align:right}
+      .referenceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.referenceCard{position:relative;border:1px solid #e1d7ca;background:#fffdf9;border-radius:18px;overflow:hidden;text-align:left;color:inherit;padding:0;box-shadow:0 8px 24px rgba(53,39,24,.045)}.referenceCard img{display:block;width:100%;aspect-ratio:1.08/1;object-fit:cover}.referenceCardCopy{padding:12px;display:grid;gap:4px}.referenceCardCopy strong{font-size:13px;line-height:1.2}.referenceCardCopy small{font-size:9px;line-height:1.4;color:#84786c}.referenceRealBadge{position:absolute;left:9px;top:9px;border:1px solid rgba(255,255,255,.35);background:rgba(36,31,26,.76);color:#fff;border-radius:999px;padding:5px 7px;font-size:7.5px;font-weight:900;letter-spacing:.06em;backdrop-filter:blur(8px)}
+      .referenceActions{display:grid;grid-template-columns:1fr auto;gap:7px;margin-top:5px}.referenceActions button{border:0;border-radius:10px;padding:9px 10px;font-size:9px;font-weight:850}.referenceView{background:#2d2924;color:#fff}.referenceAsk{background:#f0e2cf;color:#795326}
+      .referenceDetailOverlay{position:fixed;inset:0;z-index:150;background:rgba(18,16,14,.68);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);display:flex;align-items:flex-end;justify-content:center;padding:18px}.referenceDetailSheet{width:min(760px,100%);max-height:92dvh;overflow:auto;background:#faf7f1;border-radius:28px 28px 18px 18px;border:1px solid rgba(255,255,255,.5);box-shadow:0 -28px 80px rgba(0,0,0,.28);padding:16px;display:grid;gap:14px}.referenceDetailTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.referenceDetailTop h3{font:700 27px/1.08 Georgia,serif;margin:3px 0}.referenceDetailClose{border:0;width:36px;height:36px;border-radius:50%;background:#eae1d5;font-size:23px;color:#3e352c}.referenceHeroWrap{position:relative;border-radius:18px;overflow:hidden;background:#ddd}.referenceHeroImage{display:block;width:100%;max-height:54dvh;object-fit:contain;background:#161412}.referenceCounter{position:absolute;right:10px;top:10px;background:rgba(22,19,16,.72);color:#fff;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:900;backdrop-filter:blur(8px)}.referenceNav{position:absolute;inset:0;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 9px}.referenceNav button{pointer-events:auto;width:36px;height:36px;border:1px solid rgba(255,255,255,.32);border-radius:50%;background:rgba(20,17,14,.66);color:#fff;font-size:22px}.referenceThumbs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:1px}.referenceThumbs::-webkit-scrollbar{display:none}.referenceThumb{flex:0 0 74px;border:2px solid transparent;border-radius:11px;padding:0;background:transparent;overflow:hidden}.referenceThumb.active{border-color:#a67534}.referenceThumb img{display:block;width:100%;aspect-ratio:1/1;object-fit:cover}.referenceDetailMeta{display:grid;gap:6px}.referenceDetailMeta p{margin:0;color:#776b5f;font-size:10.5px;line-height:1.55}.referenceTruth{border:1px solid #e0d3c2;background:#fffaf2;border-radius:13px;padding:10px 11px;font-size:9px;color:#7e6f60;line-height:1.5}.referenceDetailActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.referenceDetailActions button{border-radius:12px;padding:12px 10px;font-size:10px;font-weight:900}.referenceDetailPrimary{border:0;background:#2d2924;color:#fff}.referenceDetailSecondary{border:1px solid #d9cbb8;background:#fffdf9;color:#6e512e}
+      @media(max-width:520px){.comingSoonActions{grid-template-columns:1fr}.compareGrid{grid-template-columns:1fr}.materialOptionWrap{grid-template-columns:1fr 1fr}.materialOptionWrap>.materialOption{grid-column:1/-1}.materialCompareBtn,.materialDetailBtn{padding:9px 10px}.referenceGrid{grid-template-columns:1fr 1fr}.referenceHeader{align-items:flex-start}.referenceNotice{display:none}.materialDetailOverlay,.referenceDetailOverlay{padding:0}.materialDetailSheet,.referenceDetailSheet{border-radius:24px 24px 0 0;max-height:94dvh;padding:14px}.materialDetailGrid{grid-template-columns:1fr 1fr}.materialSalesActions,.quickSalesActions{grid-template-columns:1fr}.materialDetailTop h3{font-size:25px}.referenceDetailTop h3{font-size:24px}.referenceDetailActions{grid-template-columns:1fr}.referenceHeroImage{max-height:49dvh}}
     `}</style>
-    <div><div className="eyebrow gold">DİJİTAL TASARIM SEÇİMİ</div><h2 className="welcome">Eviniz için kombinasyon oluşturun</h2><div className="small muted">Odayı, modeli ve porseleni seçin. Beğendiğiniz kombinasyonu hesabınıza kaydedin veya doğrudan talep oluşturun.</div></div>
-    <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div>
+    <div><div className="eyebrow gold">DİJİTAL TASARIM SEÇİMİ</div><h2 className="welcome">Eviniz için kombinasyon oluşturun</h2><div className="small muted">Odayı seçin. Yayındaki koleksiyonlarda modeli ve porseleni deneyin; hazırlanmakta olan alanlar için doğrudan proje talebi oluşturun.</div></div>
+    <div className="launchNote"><span className="launchNoteDot"/><div><strong>Eripek Gold tasarım kütüphanesi sürekli güncelleniyor.</strong><div>Mutfak koleksiyonu yayında. Diğer yaşam alanları, onaylı proje görselleri hazırlandıkça hesabınıza otomatik eklenecek.</div></div></div>
+    <div className="studioRoomTabs">{STUDIO_ROOMS.map(r => <button key={r.id} type="button" title={r.sub} className={roomId === r.id ? 'studioRoomTab active' : 'studioRoomTab'} onClick={() => chooseRoom(r.id)}><span>{r.icon}</span>{r.title}</button>)}</div><div className="categoryHint">{room.sub}</div>
+    {roomId === 'kitchen' ? <>
+    <div className="eripekPriority"><div className="eripekPriorityMain"><div className="eyebrow gold">1. ÖNCELİK • ERİPEK GOLD</div><strong>Bu tasarımlar sizin projeniz için hazırlandı.</strong><small>Aşağıdaki mutfak görselleri Eripek Gold dairelerine özel ana tasarım katmanıdır. Diğer projelerden referanslar yalnızca ilham ve uygulama kalitesini göstermek için daha aşağıda yer alır.</small></div><div className="eripekPriorityMark">EG</div></div>
     <div className={`designPreview material-${material.id} room-${room.id} ${curatedPreview ? 'curatedPreview' : ''}`}>
-      <div className="previewBadge">{curatedPreview ? 'ERİPEK GOLD • ÖZEL TASARIM' : 'ÖZEL ÖN İZLEME'}</div>
+      <div className="previewBadge">{curatedPreview ? 'ERİPEK GOLD • DAİRENİZE ÖZEL TASARIM' : 'ERİPEK GOLD • TASARIM ÖN İZLEME'}</div>
       {previewImage ? <><button type="button" className="previewImageButton" onClick={() => setViewer('preview')} aria-label={`${curatedPreview?.title || `${room.title} ${model}`} görselini tam ekran büyüt`}><img src={previewImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} className="realPreviewImage" /></button><button type="button" className="previewOpenButton" onClick={() => setViewer('preview')}><span>⌕</span> Yakınlaştır</button></> : <><div className="scene sceneWall"/><div className="scene sceneObject"/><div className="scene sceneAccent"/></>}
       <div className="previewCopy"><div className="eyebrow">{room.title.toUpperCase()}</div><strong>{curatedPreview?.title || model}</strong><div className="small">{curatedPreview?.subtitle || material.name}</div></div>
     </div>
     <PremiumImageViewer open={viewer === 'preview'} previewSrc={previewImage} src={previewFullImage} alt={curatedPreview?.title || `${room.title} ${model} ${material.name}`} title={curatedPreview?.title || `${room.title} • ${model}`} subtitle={curatedPreview?.subtitle || material.name} onClose={() => setViewer(null)} />
 
     <div className="studioBlock"><div className="sectionTitle">1 • Model seçimi</div><div className="modelChips">{STUDIO_MODELS[roomId].map(item => <button type="button" key={item} className={model === item ? 'chip active' : 'chip'} onClick={() => chooseModel(item)}>{item}</button>)}</div></div>
-    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="materialList">{STUDIO_MATERIALS.map(item => <button type="button" key={item.id} className={materialId === item.id ? 'materialOption active' : 'materialOption'} onClick={() => chooseMaterial(item.id)}><img src={item.slabImage} alt={`${item.name} porselen plaka`} loading="lazy" className="materialRealThumb"/><span><strong>{item.name}</strong><small>{item.note}</small></span><b>›</b></button>)}</div></div>
+    <div className="studioBlock"><div className="sectionTitle">2 • Porselen seçimi</div><div className="discoverTools"><input className="discoverSearch" value={materialSearch} onChange={e => setMaterialSearch(e.target.value)} placeholder="Taş, yüzey veya ürün kodu ara" aria-label="Porselen ara"/><div className="surfaceFilters"><button type="button" className={surfaceFilter === 'all' ? 'active' : ''} onClick={() => setSurfaceFilter('all')}>Tümü</button>{(['Parlak','Mat','Saten'] as const).map(s => <button type="button" key={s} className={surfaceFilter === s ? 'active' : ''} onClick={() => setSurfaceFilter(s)}>{s}</button>)}</div></div><div className="materialList">{filteredMaterials.map(item => <div className="materialOptionWrap" key={item.id}><button type="button" className={materialId === item.id ? 'materialOption active' : 'materialOption'} onClick={() => chooseMaterial(item.id)}><img src={item.slabImage} alt={`${item.name} porselen plaka`} loading="lazy" className="materialRealThumb"/><span><strong>{item.name}</strong><small>{item.note}</small></span><b>›</b></button><button type="button" className={compareMaterialId === item.id ? 'materialCompareBtn active' : 'materialCompareBtn'} disabled={item.id === materialId} onClick={() => setCompareMaterialId(compareMaterialId === item.id ? null : item.id)}>{item.id === materialId ? 'Seçili' : compareMaterialId === item.id ? '✓ Karşılaştırmada' : 'Karşılaştır'}</button><button type="button" className="materialDetailBtn" onClick={() => void openMaterialDetail(item.id)}>Detay</button></div>)}{filteredMaterials.length === 0 && <div className="materialEmpty">Aramanıza uyan porselen bulunamadı. Filtreyi temizleyip tekrar deneyin.</div>}</div></div>
 
-    {material.slabImage && <div className="realSlabCard"><button type="button" className="realSlabVisual" onClick={() => setViewer('slab')} aria-label={`${material.name} plaka görselini büyüt`}><img src={material.slabImage} alt={`${material.name} T-ONE plaka görünümü`}/><span className="slabZoomHint">⌕ Büyüt</span></button><div className="realSlabCopy"><div className="eyebrow gold">PLAKA & TEKNİK BİLGİ</div><strong>{material.slabMeta}</strong><div className="materialSpecs">{material.size && <span>{material.size}</span>}{material.thickness && <span>{material.thickness}</span>}{material.surface && <span>{material.surface}</span>}</div>{material.productCode && <div className="productCodeLine">Ürün kodu: {material.productCode}</div>}{material.productUrl && <a href={material.productUrl} target="_blank" rel="noreferrer" className="kaleSourceLine"><span className="kaleWordmark"><svg viewBox="0 0 24 24" aria-hidden="true" className="kaleCastleMark"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z"/></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span></a>}<div className="small muted">Plaka görselini büyüterek damar ve yüzey karakterini inceleyebilirsiniz. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div></div></div>}
+    {compareMaterial && compareMaterial.id !== material.id && <div className="comparePanel"><div className="compareHead"><div><div className="eyebrow gold">TAŞ KARŞILAŞTIRMA</div><strong>{material.name} ↔ {compareMaterial.name}</strong></div><button type="button" onClick={() => setCompareMaterialId(null)} aria-label="Karşılaştırmayı kapat">×</button></div><div className="compareGrid">{[material, compareMaterial].map(item => <div className="compareCard" key={item.id}><img src={item.slabImage} alt={`${item.name} plaka`}/><strong>{item.name}</strong><div className="compareSpecs"><div><span>Yüzey</span><b>{item.surface}</b></div><div><span>Ölçü</span><b>{item.size}</b></div><div><span>Kalınlık</span><b>{item.thickness}</b></div><div><span>Ürün kodu</span><b>{item.productCode}</b></div></div><div className="compareWinner">{item.note.replace(/^\d\/\d\s*•\s*/, '')}</div>{item.id !== material.id && <button type="button" className="btn dark" onClick={() => chooseMaterial(item.id)}>Bunu Tasarımda Kullan</button>}</div>)}</div></div>}
+    {material.slabImage && <div className="realSlabCard"><button type="button" className="realSlabVisual" onClick={() => setViewer('slab')} aria-label={`${material.name} plaka görselini büyüt`}><img src={material.slabImage} alt={`${material.name} T-ONE plaka görünümü`}/><span className="slabZoomHint">⌕ Büyüt</span></button><div className="realSlabCopy"><div className="eyebrow gold">PLAKA & TEKNİK BİLGİ</div><strong>{material.slabMeta}</strong><div className="materialSpecs">{material.size && <span>{material.size}</span>}{material.thickness && <span>{material.thickness}</span>}{material.surface && <span>{material.surface}</span>}</div>{material.productCode && <div className="productCodeLine">Ürün kodu: {material.productCode}</div>}{material.productUrl && <a href={material.productUrl} target="_blank" rel="noreferrer" className="kaleSourceLine"><span className="kaleWordmark"><svg viewBox="0 0 24 24" aria-hidden="true" className="kaleCastleMark"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z"/></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span></a>}<div className="small muted">Plaka görselini büyüterek damar ve yüzey karakterini inceleyebilirsiniz. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div><button type="button" className="materialMoreBtn" onClick={() => void openMaterialDetail(material.id)}>Taşı Tanıyın • Detayları Gör</button></div></div>}
     <PremiumImageViewer open={viewer === 'slab'} previewSrc={material.slabImage} src={material.slabImage} alt={`${material.name} T-ONE plaka`} title={`${material.name} • Plaka Görünümü`} subtitle={material.slabMeta || material.name} onClose={() => setViewer(null)} />
+    {detailMaterial && <div className="materialDetailOverlay" role="dialog" aria-modal="true" aria-label={`${detailMaterial.name} malzeme detayları`} onClick={e => { if (e.target === e.currentTarget) setMaterialDetailId(null) }}><div className="materialDetailSheet">
+      <div className="materialDetailTop"><div><div className="eyebrow gold">T-ONE PORSELEN KOLEKSİYONU</div><h3>{detailMaterial.name}</h3><div className="small muted">{detailMaterial.mood}</div></div><button type="button" className="materialDetailClose" onClick={() => setMaterialDetailId(null)} aria-label="Malzeme detayını kapat">×</button></div>
+      <button type="button" style={{border:0,padding:0,background:'transparent'}} onClick={() => { setMaterialDetailId(null); setViewer('slab') }} aria-label={`${detailMaterial.name} plaka görselini büyüt`}><img className="materialDetailHero" src={detailMaterial.slabImage} alt={`${detailMaterial.name} porselen plaka`}/></button>
+      <div className="materialDetailGrid"><div className="materialInfoCard"><span>Yüzey</span><strong>{detailMaterial.surface}</strong></div><div className="materialInfoCard"><span>Ölçü</span><strong>{detailMaterial.size}</strong></div><div className="materialInfoCard"><span>Kalınlık</span><strong>{detailMaterial.thickness}</strong></div><div className="materialInfoCard"><span>Ürün Kodu</span><strong>{detailMaterial.productCode}</strong></div><div className="materialInfoCard"><span>Renk Paleti</span><strong>{detailMaterial.palette}</strong></div><div className="materialInfoCard"><span>Damar</span><strong>{detailMaterial.vein}</strong></div></div>
+      <div className="materialDetailSection"><strong>Taş karakteri</strong><p>{detailMaterial.character}</p></div>
+      <div className="materialDetailSection"><strong>Tasarımda önerdiğimiz kullanım alanları</strong><div className="materialChipList">{detailMaterial.recommendedFor.map(x => <span key={x}>{x}</span>)}</div></div>
+      <div className="materialDetailSection"><strong>Birlikte iyi çalışan detaylar</strong><div className="materialChipList">{detailMaterial.pairings.map(x => <span key={x}>{x}</span>)}</div></div>
+      <div className="materialSalesBox"><div><div className="eyebrow gold">BU TAŞI EVİNİZDE DEĞERLENDİRİN</div><strong>{room.title} • {model}</strong><div className="small muted">{detailMaterial.name} seçimi daire bilgilerinizle birlikte talebe eklenir.</div></div><div className="materialSalesActions"><button type="button" className="materialSalesPrimary" onClick={() => void prepareSalesIntent('Fiyat teklifi istiyorum', detailMaterial, 'material_detail')}>Fiyat İste</button><button type="button" className="materialSalesSoft" onClick={() => void prepareSalesIntent('Keşif ve ölçü talebi', detailMaterial, 'material_detail')}>Keşif İste</button><button type="button" className="materialSalesSoft" onClick={() => { chooseMaterial(detailMaterial.id); setMaterialDetailId(null) }}>Tasarımda Kullan</button></div></div>
+      {detailMaterial.productUrl && <a href={detailMaterial.productUrl} target="_blank" rel="noreferrer" className="kaleSourceLine"><span className="kaleWordmark"><svg viewBox="0 0 24 24" aria-hidden="true" className="kaleCastleMark"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z"/></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span></a>}
+      <div className="materialDisclaimer">Renk ve damar algısı ekran ayarlarına göre değişebilir. Kullanım önerileri Master Porcelenta tasarım yönlendirmesidir; nihai seçim proje ölçüsü, ışık ve fiziksel numune değerlendirmesiyle yapılır.</div>
+    </div></div>}
 
     <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><div style={{display:'flex',gap:7,flexWrap:'wrap',justifyContent:'flex-end'}}><button type="button" disabled={cartBusy} className={inCart ? 'cartAction active' : 'cartAction'} onClick={toggleCart}>{cartBusy ? 'İşleniyor…' : inCart ? '✓ Sepette' : '+ Sepete Ekle'}</button><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div></div>
+    <div className="quickSales"><div className="quickSalesHead"><strong>Bu seçim için ne yapmak istersiniz?</strong><span>Bilgileriniz otomatik eklenir</span></div><div className="quickSalesActions"><button type="button" onClick={() => void prepareSalesIntent('Fiyat teklifi istiyorum')}>Fiyat İste</button><button type="button" onClick={() => void prepareSalesIntent('Keşif ve ölçü talebi')}>Keşif & Ölçü</button><button type="button" onClick={() => void prepareSalesIntent('Yeni proje danışmanlığı')}>Danışmana Sor</button></div></div>
     {favorites.length > 0 && <div className="card savedDesignsCard"><div className="sectionRow"><div><div className="eyebrow gold">KAYDETTİKLERİM</div><strong>Beğendiğiniz tasarımlar</strong></div><span className="countPill">{favorites.length}</span></div><div className="savedDesignList">{favorites.map(f => <button type="button" key={f.id} onClick={() => openFavorite(f)}><span className="savedMiniVisual">MP</span><span><strong>{f.room} • {f.design_name}</strong><small>{f.material_name}</small></span><b>›</b></button>)}</div></div>}
-    <div className="card projectLeadCard"><div className="eyebrow gold">PROJENİZİ BAŞLATALIM</div><strong>Bu seçimi evinizde değerlendirelim</strong><div className="small muted">Talebiniz daire bilgilerinizle birlikte Master Porcelenta ekibine iletilir. Tekrar adres veya telefon girmeniz gerekmez.</div><div><label className="label">Talep türü</label><select className="input" value={requestType} onChange={e => setRequestType(e.target.value as typeof requestType)}>{PROJECT_REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}</select></div><div><label className="label">Notunuz <span className="muted">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Örn: Ada tezgahı için yerinde ölçü ve fiyat istiyorum." /></div>{requestMsg && <div className="errorBox">{requestMsg}</div>}{requestNo && <div className="successBox"><strong>{requestUi.success}</strong><div className="small">Talep numaranız: {requestNo}</div></div>}<button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? requestUi.busy : requestUi.button}</button></div>
+    </> : <div className="comingSoonPanel">
+      <div className="comingSoonIcon">{room.icon}</div>
+      <div><div className="eyebrow gold">ERİPEK GOLD • {room.title.toUpperCase()}</div><h3>Dairenize özel tasarımlar hazırlanıyor</h3></div>
+      <p>Bu bölümde yayınlanacak ana içerik yalnızca Eripek Gold daireleri için hazırlanan seçilebilir tasarımlar olacak. Hazırlık tamamlanana kadar aşağıdaki Master Porcelenta uygulamalarını yalnızca referans ve ilham amacıyla inceleyebilirsiniz.</p>
+      <div className="comingSoonMeta"><span>Gerçek proje görselleri</span><span>Porselen seçenekleri</span><span>Uygulama modelleri</span></div>
+      <div className="comingSoonActions"><button type="button" className="comingSoonPrimary" onClick={() => { setRequestType('Yeni proje danışmanlığı'); document.getElementById('project-lead-form')?.scrollIntoView({behavior:'smooth',block:'start'}) }}>Bu alan için talep oluştur</button><button type="button" className="comingSoonSecondary" onClick={() => chooseRoom('kitchen')}>Yayındaki mutfak tasarımları</button></div>
+    </div>}
+    {referenceProjects.length > 0 && <div className="referenceSection">
+      <div className="referenceDivider"><span>2. KATMAN • İLHAM & REFERANS</span></div>
+      <div className="referenceHeader"><div><div className="eyebrow gold">MASTER PORCELENTA • GERÇEK UYGULAMALAR</div><strong>{room.title} referansları</strong></div><div className="referenceNotice">Bunlar Eripek Gold’a ait tasarımlar değildir. Yalnızca işçilik, model ve uygulama seçeneklerine ilham vermek için gösterilir.</div></div>
+      <div className="referenceGrid">{referenceProjects.map(item => <div className="referenceCard" key={item.id}><span className="referenceRealBadge">GERÇEK UYGULAMA</span><button type="button" style={{border:0,padding:0,background:'transparent',width:'100%',textAlign:'left',color:'inherit'}} onClick={() => void openReference(item)}><img src={referenceThumbPath(item.image)} alt={item.title} loading="lazy" decoding="async"/><span className="referenceCardCopy"><strong>{item.title}</strong><small>{item.subtitle}</small></span></button><div className="referenceActions" style={{padding:'0 12px 12px'}}><button type="button" className="referenceView" onClick={() => void openReference(item)}>Projeyi İncele</button><button type="button" className="referenceAsk" onClick={() => void requestReference(item)}>Benzerini İstiyorum</button></div></div>)}</div>
+    </div>}
+    {viewer === 'reference' && selectedReference && <div className="referenceDetailOverlay" role="dialog" aria-modal="true" aria-label={`${selectedReference.title} proje detayı`} onClick={e => { if (e.target === e.currentTarget) { setViewer(null); setSelectedReference(null); setReferenceIndex(0) } }}><div className="referenceDetailSheet">
+      <div className="referenceDetailTop"><div><div className="eyebrow gold">MASTER PORCELENTA • GERÇEK UYGULAMA</div><h3>{selectedReference.title}</h3><div className="small muted">{selectedReference.subtitle}</div></div><button type="button" className="referenceDetailClose" onClick={() => { setViewer(null); setSelectedReference(null); setReferenceIndex(0) }} aria-label="Proje detayını kapat">×</button></div>
+      <div className="referenceHeroWrap">{selectedReferenceImage && <img className="referenceHeroImage" src={selectedReferenceImage} alt={`${selectedReference.title} uygulama görseli ${referenceIndex + 1}`}/>}<span className="referenceCounter">{referenceIndex + 1}/{selectedReference.gallery.length}</span>{selectedReference.gallery.length > 1 && <div className="referenceNav"><button type="button" aria-label="Önceki görsel" onClick={() => setReferenceIndex(i => (i - 1 + selectedReference.gallery.length) % selectedReference.gallery.length)}>‹</button><button type="button" aria-label="Sonraki görsel" onClick={() => setReferenceIndex(i => (i + 1) % selectedReference.gallery.length)}>›</button></div>}</div>
+      {selectedReference.gallery.length > 1 && <div className="referenceThumbs">{selectedReference.gallery.map((img, i) => <button type="button" key={`${img}-${i}`} className={i === referenceIndex ? 'referenceThumb active' : 'referenceThumb'} onClick={() => setReferenceIndex(i)} aria-label={`${i + 1}. görsel`}><img src={referenceThumbPath(img)} alt="" loading="lazy" decoding="async"/></button>)}</div>}
+      <div className="referenceDetailMeta"><div className="eyebrow gold">{room.title.toUpperCase()} • REFERANS</div><p>Bu proje, Master Porcelenta’nın farklı bir uygulamasından gerçek iş örneğidir. Formu, detay çözümünü ve işçilik seviyesini inceleyebilir; aynı dili Eripek Gold dairenize göre yeniden yorumlamamızı isteyebilirsiniz.</p></div>
+      <div className="referenceTruth"><strong>Eripek Gold ayrımı:</strong> Bu görseller Eripek Gold dairelerine ait değildir. Eripek Gold’a özel tasarımlar her zaman üstte ve ayrı olarak gösterilir.</div>
+      <div className="referenceDetailActions"><button type="button" className="referenceDetailPrimary" onClick={() => void requestReference(selectedReference)}>Benzerini Dairem İçin İstiyorum</button><button type="button" className="referenceDetailSecondary" onClick={() => { setViewer(null); setSelectedReference(null); setReferenceIndex(0) }}>Referanslara Dön</button></div>
+    </div></div>}
+    <div className="card projectLeadCard" id="project-lead-form"><div className="eyebrow gold">PROJENİZİ BAŞLATALIM</div><strong>{roomId === 'kitchen' ? 'Bu seçimi evinizde değerlendirelim' : `${room.title} için talebinizi iletin`}</strong><div className="small muted">{roomId === 'kitchen' ? 'Talebiniz seçtiğiniz model ve porselenle birlikte Master Porcelenta ekibine iletilir.' : `Hazır koleksiyonu beklemeden ${room.title.toLocaleLowerCase('tr-TR')} için ölçü, keşif, fiyat veya özel tasarım talebi oluşturabilirsiniz.`} Daire ve iletişim bilgileriniz otomatik eklenir.</div><div><label className="label">Talep türü</label><select className="input" value={requestType} onChange={e => setRequestType(e.target.value as typeof requestType)}>{PROJECT_REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}</select></div><div><label className="label">Notunuz <span className="muted">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Örn: Ada tezgahı için yerinde ölçü ve fiyat istiyorum." /></div>{requestMsg && <div className="errorBox">{requestMsg}</div>}{requestNo && <div className="successBox"><strong>{requestUi.success}</strong><div className="small">Talep numaranız: {requestNo}</div><div className="small muted">Master Porcelenta ekibi talebinizi admin panelinden görebilir; durum ve teklif güncellemeleri Taleplerim ekranınıza yansır.</div></div>}<button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? requestUi.busy : requestUi.button}</button></div>
   </>
 }
 
-function RequestsTab({ residence, portal, loading, onRefresh }: { residence: Residence; portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
+function RequestsTab({ residence, sessionToken, portal, loading, onRefresh }: { residence: Residence; sessionToken: string; portal: PortalData; loading: boolean; onRefresh: () => Promise<void> }) {
   const [kind, setKind] = useState<'all' | 'service' | 'project'>('all')
+  const [quoteBusy, setQuoteBusy] = useState('')
+  const [quoteNotes, setQuoteNotes] = useState<Record<string,string>>({})
   const all = [
     ...portal.service_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'service' as const, no: x.ticket_no, title: x.issue_type, detail: x.description || '', status: SERVICE_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, appointment_at: x.appointment_at || null, admin_note: x.admin_note || '', attachments: x.attachments || [], quote_amount: null as number | null, quote_note: '', quote_valid_until: null as string | null })),
-    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, appointment_at: x.appointment_at || null, admin_note: x.admin_note || '', attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null })),
+    ...portal.project_requests.filter(x => !x.residence_id || x.residence_id === residence.id).map(x => ({ type: 'project' as const, no: x.request_no, title: x.request_type || 'Proje talebi', detail: [x.room, x.design_name, x.material_name].filter(Boolean).join(' • '), status: PROJECT_STATUS_LABELS[x.status] || x.status, rawStatus: x.status, created_at: x.created_at, appointment_at: x.appointment_at || null, admin_note: x.admin_note || '', attachments: [] as ServiceAttachment[], quote_amount: x.quote_amount || null, quote_note: x.quote_note || '', quote_valid_until: x.quote_valid_until || null, customer_quote_response: x.customer_quote_response || 'pending', customer_quote_note: x.customer_quote_note || '', customer_quote_responded_at: x.customer_quote_responded_at || null })),
   ].filter(x => kind === 'all' || x.type === kind).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+
+  function quoteResponseLabel(status?: string){return status==='accepted'?'Teklifi uygun buldunuz':status==='question'?'Görüşme talebiniz iletildi':status==='declined'?'Şimdilik düşünmüyorsunuz':'Yanıtınızı bekliyoruz'}
+  async function respondQuote(requestNo:string,response:'accepted'|'question'|'declined'){
+    setQuoteBusy(requestNo)
+    try{
+      const ok=await rpcPost(CUSTOMER_QUOTE_RESPONSE_RPC,{p_session_hash:await sha256Hex(sessionToken),p_request_no:requestNo,p_response:response,p_note:(quoteNotes[requestNo]||'').trim()||null})
+      if(ok!==true)throw new Error('quote_response_failed')
+      setQuoteNotes(prev=>({...prev,[requestNo]:''}))
+      await onRefresh()
+    }finally{setQuoteBusy('')}
+  }
 
   return <div className="stack"><div><div className="eyebrow gold">TALEPLERİM</div><h2 className="welcome">İşlemlerinizi takip edin</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no} için servis, keşif ve teklif talepleriniz.</div></div>
     <div className="requestFilters"><button type="button" className={kind === 'all' ? 'active' : ''} onClick={() => setKind('all')}>Tümü</button><button type="button" className={kind === 'service' ? 'active' : ''} onClick={() => setKind('service')}>Servis</button><button type="button" className={kind === 'project' ? 'active' : ''} onClick={() => setKind('project')}>Proje / Teklif</button><button type="button" className="refreshRequests" onClick={() => onRefresh()} aria-label="Talepleri yenile">↻</button></div>
-    {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}{x.appointment_at && <div className="requestAppointment"><span>Planlanan tarih</span><strong>{dateTimeTR(x.appointment_at)}</strong></div>}{x.admin_note && <div className="requestAdminNote"><span>Master Porcelenta notu</span><div>{x.admin_note}</div></div>}{x.type === 'project' && x.quote_amount ? <div className="quoteCustomerBox"><div className="small muted">Master Porcelenta fiyat teklifi</div><strong>{moneyTR(x.quote_amount)}</strong>{x.quote_note && <div className="small">{x.quote_note}</div>}{x.quote_valid_until && <div className="small muted">Geçerlilik: {formatDateTR(x.quote_valid_until)}</div>}</div> : null}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
+    {loading ? <div className="card small muted">Talepler yükleniyor…</div> : all.length ? <div className="customerRequestList">{all.map(x => <div className="card customerRequest" key={x.no}><div className="customerRequestTop"><div><div className="ticketNo">{x.no}</div><strong>{x.title}</strong></div><span className={`customerStatus st-${x.rawStatus}`}>{x.status}</span></div>{x.detail && <div className="small muted">{x.detail}</div>}{x.appointment_at && <div className="requestAppointment"><span>Planlanan tarih</span><strong>{dateTimeTR(x.appointment_at)}</strong></div>}{x.admin_note && <div className="requestAdminNote"><span>Master Porcelenta notu</span><div>{x.admin_note}</div></div>}{x.type === 'project' && x.quote_amount ? <div className="quoteCustomerBox"><div className="small muted">Master Porcelenta fiyat teklifi</div><strong>{moneyTR(x.quote_amount)}</strong>{x.quote_note && <div className="small">{x.quote_note}</div>}{x.quote_valid_until && <div className="small muted">Geçerlilik: {formatDateTR(x.quote_valid_until)}</div>}<div className="quoteResponseBox"><span className={`quoteResponseBadge ${x.customer_quote_response||'pending'}`}>{quoteResponseLabel(x.customer_quote_response)}</span>{x.quote_valid_until && new Date(`${x.quote_valid_until}T23:59:59`).getTime()<Date.now()?<div className="quoteExpired">Bu teklifin geçerlilik tarihi sona erdi. Yeni teklif için Master Porcelenta ile görüşebilirsiniz.</div>:<><textarea className="quoteResponseNote" value={quoteNotes[x.no]||''} onChange={e=>setQuoteNotes(prev=>({...prev,[x.no]:e.target.value}))} placeholder="Teklif hakkında notunuz (opsiyonel)"/><div className="quoteResponseActions"><button type="button" className="primary" disabled={quoteBusy===x.no} onClick={()=>void respondQuote(x.no,'accepted')}>{quoteBusy===x.no?'İletiliyor…':'Teklifi Uygun Buluyorum'}</button><button type="button" disabled={quoteBusy===x.no} onClick={()=>void respondQuote(x.no,'question')}>Görüşmek İstiyorum</button><button type="button" disabled={quoteBusy===x.no} onClick={()=>void respondQuote(x.no,'declined')}>Şimdilik Değil</button></div></>}{x.customer_quote_responded_at&&<div className="small muted">Son yanıtınız: {dateTimeTR(x.customer_quote_responded_at)}</div>}</div></div> : null}<div className="small requestDate">{dateTimeTR(x.created_at)}</div>{x.attachments.length > 0 && <div className="attachmentGrid">{x.attachments.map((a, i) => a.signed_url ? <a href={a.signed_url} target="_blank" rel="noreferrer" key={a.storage_path || i}><img src={a.signed_url} alt={`Servis fotoğrafı ${i + 1}`} /></a> : null)}</div>}</div>)}</div> : <div className="emptySoft"><strong>Henüz talebiniz yok</strong><div className="small muted">Servis veya proje talebi oluşturduğunuzda kayıtlarınız burada görünür.</div></div>}
   </div>
 }
 
@@ -1085,7 +1472,7 @@ function ServiceTab({ residence, sessionToken, installedProducts, onCreated }: {
 function AccountTab({ customer, residence, residences, sessionToken, support, productCount, savedCount, onProducts, onDesigns, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; support: SupportInfo | null; productCount: number; savedCount: number; onProducts: () => void; onDesigns: () => void; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [email, setEmail] = useState(customer.email || ''), [pin, setPin] = useState(''), [pinAgain, setPinAgain] = useState('')
   const [msg, setMsg] = useState(''), [ok, setOk] = useState(false), [busy, setBusy] = useState(false)
-  const [addBlock, setAddBlock] = useState(''), [addFloor, setAddFloor] = useState(''), [addUnit, setAddUnit] = useState('')
+  const [addBlock, setAddBlock] = useState(''), [addFloor, setAddFloor] = useState(''), [addUnit, setAddUnit] = useState(''), [addActivationCode, setAddActivationCode] = useState('')
   const [addMsg, setAddMsg] = useState(''), [addOk, setAddOk] = useState(false), [addBusy, setAddBusy] = useState(false)
   const floorUnits = addFloor ? ({ '1': ['1','2','3','4'], '2': ['5','6','7','8'], '3': ['9','10','11','12'], '4': ['13','14','15','16'], '5': ['17','18','19','20'], '6': ['21','22','23','24'], '7': ['25'] } as Record<string, string[]>)[addFloor] || [] : []
 
@@ -1094,14 +1481,16 @@ function AccountTab({ customer, residence, residences, sessionToken, support, pr
   async function addResidence(e: FormEvent) {
     e.preventDefault(); setAddMsg(''); setAddOk(false)
     if (!addBlock || !addFloor || !addUnit) return setAddMsg('Blok, kat ve daire bilgilerini seçin.')
+    if (!/^EG[0-9A-F]{12}$/.test(normalizeActivationCode(addActivationCode))) return setAddMsg('Eklemek istediğiniz dairenin aktivasyon kodunu girin.')
     setAddBusy(true)
     try {
-      const data = await addResidenceToAccount(sessionToken, addBlock, addFloor, addUnit)
-      await onResidenceAdded({ residence: { id: data.residence_id } }); setAddOk(true); setAddBlock(''); setAddFloor(''); setAddUnit('')
+      const data = await addResidenceToAccount(sessionToken, addBlock, addFloor, addUnit, addActivationCode)
+      await onResidenceAdded({ residence: { id: data.residence_id } }); setAddOk(true); setAddBlock(''); setAddFloor(''); setAddUnit(''); setAddActivationCode('')
     } catch (err) {
       const code = err instanceof Error ? err.message : ''
       if (code === 'invalid_session') setAddMsg('Oturumunuz sona ermiş. Güvenli çıkış yapıp yeniden giriş yapın.')
       else if (code === 'residence_already_claimed') setAddMsg('Bu daire başka bir hesaba tanımlanmış veya daha önce aktive edilmiş. Master Porcelenta ile iletişime geçin.')
+      else if (code === 'invalid_activation_code') setAddMsg('Aktivasyon kodu bu daireyle eşleşmiyor veya daha önce kullanılmış.')
       else if (code === 'residence_not_found' || code === 'invalid_residence') setAddMsg('Daire bilgilerini kontrol edin.')
       else setAddMsg('Daire hesabınıza eklenemedi. Bilgileri kontrol edip tekrar deneyin.')
     } finally { setAddBusy(false) }
@@ -1121,17 +1510,27 @@ function AccountTab({ customer, residence, residences, sessionToken, support, pr
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
     <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div>{customer.email && <div><div className="small muted">E-posta</div><strong>{customer.email}</strong></div>}<div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
     <button type="button" className="card productsSummaryCard" onClick={onDesigns}><div className="productsSummaryIcon">♡</div><div className="productsSummaryBody"><div className="eyebrow gold">TASARIMLARIM</div><strong>{savedCount ? `${savedCount} kayıtlı seçim` : 'Kaydettiğiniz tasarımlar'}</strong><div className="small muted">Sepet, favoriler ve size özel teklifler</div></div><div className="productsSummaryArrow">›</div></button>
-    <div className="card residencesCard"><div className="residencesCardHead"><div><div className="eyebrow gold">DAİRELERİM</div><strong>{residences.length} kayıtlı konut</strong><div className="small muted">Daire değiştirdiğinizde ürün, garanti, servis ve talepler o konuta göre gösterilir.</div></div></div><div className="residenceList">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={() => onResidenceChange(r)}><span><b>{r.block} Blok • Daire {r.unit_no}</b><small>{r.floor}. Kat</small></span><em>{r.id === residence.id ? 'Aktif' : 'Seç'}</em></button>)}</div><details className="addResidenceDetails"><summary>+ Başka dairem var</summary><form className="addResidenceForm" onSubmit={addResidence}><div className="grid3"><select className="input" value={addBlock} onChange={e => setAddBlock(e.target.value)}><option value="">Blok</option>{['A','B','C','D'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addFloor} onChange={e => { setAddFloor(e.target.value); setAddUnit('') }}><option value="">Kat</option>{['1','2','3','4','5','6','7'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addUnit} onChange={e => setAddUnit(e.target.value)} disabled={!addFloor}><option value="">Daire</option>{floorUnits.map(x => <option key={x}>{x}</option>)}</select></div><div className="small muted">Bu işlem seçtiğiniz konutu mevcut Master Porcelenta hesabınıza bağlar. Daire başka bir hesaba tanımlıysa işlem yapılmaz.</div>{addMsg && <div className="errorBox">{addMsg}</div>}{addOk && <div className="successBox">Daire hesabınıza eklendi ve aktif konut olarak seçildi.</div>}<button className="btn dark" disabled={addBusy}>{addBusy ? 'Ekleniyor…' : 'Daireyi Hesabıma Ekle'}</button></form></details></div>
+    <div className="card residencesCard"><div className="residencesCardHead"><div><div className="eyebrow gold">DAİRELERİM</div><strong>{residences.length} kayıtlı konut</strong><div className="small muted">Daire değiştirdiğinizde ürün, garanti, servis ve talepler o konuta göre gösterilir.</div></div></div><div className="residenceList">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={() => onResidenceChange(r)}><span><b>{r.block} Blok • Daire {r.unit_no}</b><small>{r.floor}. Kat</small></span><em>{r.id === residence.id ? 'Aktif' : 'Seç'}</em></button>)}</div><details className="addResidenceDetails"><summary>+ Başka dairem var</summary><form className="addResidenceForm" onSubmit={addResidence}><div className="grid3"><select className="input" value={addBlock} onChange={e => setAddBlock(e.target.value)}><option value="">Blok</option>{['A','B','C','D'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addFloor} onChange={e => { setAddFloor(e.target.value); setAddUnit('') }}><option value="">Kat</option>{['1','2','3','4','5','6','7'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addUnit} onChange={e => setAddUnit(e.target.value)} disabled={!addFloor}><option value="">Daire</option>{floorUnits.map(x => <option key={x}>{x}</option>)}</select></div><div><label className="label">Daire Aktivasyon Kodu</label><input className="input activationCodeInput" value={addActivationCode} onChange={e => setAddActivationCode(formatActivationCodeInput(e.target.value))} autoCapitalize="characters" autoCorrect="off" spellCheck={false} placeholder="EG-XXXX-XXXX-XXXX" /></div><div className="small muted">Bu işlem yalnızca seçtiğiniz konuta ait tek kullanımlık aktivasyon koduyla yapılabilir.</div>{addMsg && <div className="errorBox">{addMsg}</div>}{addOk && <div className="successBox">Daire hesabınıza eklendi ve aktif konut olarak seçildi.</div>}<button className="btn dark" disabled={addBusy}>{addBusy ? 'Ekleniyor…' : 'Daireyi Hesabıma Ekle'}</button></form></details></div>
     <button type="button" className="card accountProductsLink" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{productCount} kayıtlı uygulama</strong><div className="small muted">Ölçü, montaj ve garanti detaylarını görüntüleyin</div></div><b>›</b></button>
     <form className="card accountLoginSetup" onSubmit={saveLogin}><div><div className="eyebrow gold">FARKLI CİHAZDAN GİRİŞ</div><strong>Giriş bilgilerinizi yönetin</strong><div className="small muted spaceTop">Telefon numaranız her zaman kullanılabilir. İsterseniz e-posta ekleyin ve 6 haneli giriş kodunuzu belirleyin veya değiştirin.</div></div><div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="email" placeholder="ad@eposta.com" /></div><div className="pinGrid"><div><label className="label">Yeni 6 Haneli Kod</label><input className="input pinInput" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div><div><label className="label">Kodu Tekrar</label><input className="input pinInput" value={pinAgain} onChange={e => setPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div></div>{msg && <div className="errorBox">{msg}</div>}{ok && <div className="successBox">Giriş bilgileriniz güncellendi. Artık farklı cihazlardan da hesabınıza girebilirsiniz.</div>}<button className="btn dark" type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Giriş Bilgilerimi Kaydet'}</button></form>
+    <div className="card privacyPrefsCard"><div><div className="eyebrow gold">GİZLİLİK & VERİ KULLANIMI</div><strong>Portal kullanım kayıtları hesabınızla ilişkilidir</strong><div className="small muted spaceTop">Gezinme, tasarım/taş ilgisi, favori, sepet, teklif ve servis hareketleri hesabınızın müşteri geçmişinde tutulur. Bu kayıtlar müşteri deneyimi, satış takibi ve kişiselleştirilmiş içerik sıralaması için kullanılabilir.</div></div><div className="privacyDivider"/><PrivacyNotice /></div>
     {support && <div className="card supportCard"><div><div className="eyebrow gold">MÜŞTERİ DESTEĞİ</div><strong>Master Porcelenta ile iletişim</strong></div><div className="supportActions">{support.phone && <a href={`tel:${support.phone.replace(/\D/g, '')}`}><span>Telefon</span><strong>{support.phone}</strong>{support.contact_name && <small>{support.contact_name}</small>}</a>}{support.whatsapp && <a href={`https://wa.me/90${support.whatsapp.replace(/\D/g, '').replace(/^0/, '')}`} target="_blank" rel="noreferrer"><span>WhatsApp</span><strong>{support.whatsapp}</strong><small>Master Porcelenta</small></a>}{support.email && <a href={`mailto:${support.email}`}><span>E-posta</span><strong>{support.email}</strong></a>}</div>{support.address && <div className="supportAddress small muted">İşletme adresi: {support.address}</div>}</div>}
     <PrivacyNotice />
     <button className="btn ghost" onClick={async () => { try { await gateway({ action: 'customer_logout', session_token: sessionToken }) } catch {} onReset() }}>Güvenli çıkış yap</button>
   </>
 }
 
-function PrivacyNotice() {
-  return <details className="privacyNotice"><summary>KVKK Aydınlatma Metni <span>›</span></summary><div className="privacyNoticeBody"><p><strong>Veri sorumlusu:</strong> Master Porcelenta, TPAO BLV NO: 75/A Batman/Merkez.</p><p>Eripek Gold portalında ad-soyad, telefon, isteğe bağlı e-posta, konut bilgisi, ürün/garanti kayıtları, servis ve proje/teklif talepleri ile servis için yüklediğiniz ürün/hasar fotoğrafları; hesabınızın oluşturulması, garanti bilgilerinin sunulması, servis ve teklif süreçlerinin yürütülmesi, sizinle iletişim kurulması ve portal güvenliğinin sağlanması amaçlarıyla işlenir.</p><p>Veriler elektronik ortamda, tarafınızca girilen bilgiler ve portal kullanımı yoluyla elde edilir; ilgili süreç bakımından 6698 sayılı Kanun'un 5. maddesindeki sözleşmenin kurulması veya ifasıyla doğrudan ilgili olma, veri sorumlusunun hukuki yükümlülüğünü yerine getirmesi ve temel haklarınıza zarar vermemek kaydıyla meşru menfaat işleme şartlarına dayanılarak işlenir.</p><p>Veriler, hizmetin yürütülmesi için gerektiği ölçüde teknik altyapı/barındırma hizmet sağlayıcılarıyla ve kanunen talep edilmesi halinde yetkili kamu kurum ve kuruluşlarıyla paylaşılabilir.</p><p>6698 sayılı Kanun'un 11. maddesi kapsamındaki haklarınıza ilişkin başvurularınızı <a href="mailto:masterporcelenta@gmail.com">masterporcelenta@gmail.com</a> adresine veya yukarıdaki işletme adresine iletebilirsiniz.</p><p className="privacyPhotoNote"><strong>Servis fotoğrafı:</strong> Yalnızca ürün ve hasar alanını paylaşın; kişi, kimlik belgesi veya özel belge görüntüsü yüklemeyin.</p></div></details>
+function PrivacyNotice({open=false}:{open?:boolean}) {
+  return <details className="privacyNotice" open={open}><summary>KVKK Aydınlatma Metni <span>›</span></summary><div className="privacyNoticeBody">
+    <p><strong>Veri sorumlusu:</strong> Master Porcelenta, TPAO BLV NO: 75/A Batman/Merkez. <em>Yayına almadan önce ticari unvan/veri sorumlusu bilgisinin işletme kayıtlarıyla birebir doğrulanması gerekir.</em></p>
+    <p><strong>İşlenen temel veriler:</strong> ad-soyad, telefon, isteğe bağlı e-posta, daire/konut eşleştirmesi, ürün ve garanti kayıtları, servis/proje/teklif talepleri, sizin eklediğiniz notlar ve servis kapsamında isteğe bağlı yüklediğiniz ürün/hasar fotoğrafları.</p>
+    <p><strong>Amaçlar:</strong> müşteri hesabının ve daire eşleştirmesinin kurulması; ürün/garanti bilgisinin sunulması; servis, proje, keşif ve teklif süreçlerinin yürütülmesi; güvenli giriş ve bildirimlerin sağlanması; talebiniz üzerine sizinle iletişim kurulması.</p>
+    <p><strong>Toplama yöntemi ve hukuki sebepler:</strong> veriler elektronik ortamda sizin girişleriniz, hesap/daire kayıtları ve portal üzerinden başlattığınız işlemler yoluyla elde edilir. İlgili faaliyete göre 6698 sayılı Kanun’un 5. maddesindeki sözleşmenin kurulması veya ifasıyla doğrudan ilgili olma, hukuki yükümlülüğün yerine getirilmesi ve temel hak ve özgürlüklerinize zarar vermemek kaydıyla meşru menfaat işleme şartları değerlendirilir.</p>
+    <p><strong>Portal kullanım kayıtları:</strong> sayfa, oda, tasarım ve taş görüntüleme; favori, sepet, referans proje inceleme, fiyat/keşif niyeti ve teklif etkileşimleri hesabınızla ilişkilendirilerek kayıt altına alınır. Bu veriler müşteri işlemlerinin takibi, hizmet geliştirme, satış/ilgi yönetimi, “Sizin İçin”, son baktıklarınız ve içerik sıralaması gibi portal işlevlerinde kullanılabilir.</p>
+    <p><strong>Aktarım/alıcı grupları:</strong> hizmetin güvenli biçimde sunulması için gerektiği ölçüde veritabanı, barındırma, dosya saklama ve içerik dağıtım hizmeti sağlayıcılarıyla; ayrıca kanunen talep edilmesi halinde yetkili kamu kurum ve kuruluşlarıyla paylaşım yapılabilir. Teknik altyapının bir kısmı yurt dışında bulunduğundan, yurt dışına veri aktarımı bakımından Kanun’un 9. maddesindeki uygun güvence mekanizmalarının işletme tarafından ayrıca tamamlanması ve doğrulanması gerekir.</p>
+    <p><strong>Haklarınız:</strong> 6698 sayılı Kanun’un 11. maddesi kapsamındaki taleplerinizi <a href="mailto:masterporcelenta@gmail.com">masterporcelenta@gmail.com</a> adresine veya yukarıdaki işletme adresine iletebilirsiniz.</p>
+    <p className="privacyPhotoNote"><strong>Servis fotoğrafı:</strong> Yalnızca ürün ve hasar alanını paylaşın; kişi, kimlik belgesi veya özel belge görüntüsü yüklemeyin.</p>
+  </div></details>
 }
 
 function Room({ title, sub, onClick }: { title: string; sub: string; onClick?: () => void }) {
