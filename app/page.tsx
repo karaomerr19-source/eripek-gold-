@@ -22,7 +22,10 @@ type InstalledProduct = { id: string; residence_id: string; product_code?: strin
 type FavoriteItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; created_at?: string }
 type StudioVariant = { room?: string | null; design_name?: string | null; model_code?: string | null; material_name?: string | null; preview_image_url?: string | null }
 type SupportInfo = { contact_name?: string | null; phone?: string | null; whatsapp?: string | null; email?: string | null; address?: string | null }
-type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[]; support?: SupportInfo | null }
+type CartItem = { id: string; residence_id: string; room?: string | null; design_name?: string | null; material_name?: string | null; quantity?: number; notes?: string | null; status?: string; created_at?: string; updated_at?: string }
+type CustomerOffer = { id: string; residence_id?: string | null; title: string; message?: string | null; discount_type?: string; discount_value?: number | null; promo_code?: string | null; starts_at?: string; ends_at?: string | null; status?: string; created_at?: string }
+type Campaign = { id: string; title: string; subtitle?: string | null; body?: string | null; placement?: string | null; audience?: Record<string, unknown> | null; image_url?: string | null; cta_label?: string | null; cta_url?: string | null; starts_at?: string | null; ends_at?: string | null; is_active?: boolean }
+type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[]; cart: CartItem[]; offers: CustomerOffer[]; campaigns: Campaign[]; support?: SupportInfo | null }
 type ServicePhoto = { name: string; data_url: string }
 
 type DashboardTab = 'home' | 'products' | 'discover' | 'requests' | 'account' | 'service'
@@ -31,6 +34,9 @@ type HistoryMode = 'push' | 'replace'
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
 const ADD_RESIDENCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_add_residence'
 const PLANNING_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_request_planning'
+const CUSTOMER_EVENT_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_event'
+const CUSTOMER_COMMERCE_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_commerce'
+const CUSTOMER_CART_RPC = 'https://txknydpygsvwdhxoumcm.supabase.co/rest/v1/rpc/edge_customer_cart_set'
 const PUBLIC_KEY = 'sb_publishable_Zsyau0ZEke4HzdXqpt1gww_aFuxn7ia'
 const SESSION_KEY = 'eripek_gold_session'
 const ACCOUNT_CACHE_KEY = 'eripek_gold_account'
@@ -463,7 +469,7 @@ function NavIcon({ name }: { name: 'home' | 'products' | 'discover' | 'requests'
 
 function Dashboard({ customer, residence, residences, sessionToken, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [route, setRoute] = useState<PortalRoute>(() => readPortalRoute())
-  const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], support: null })
+  const [portal, setPortal] = useState<PortalData>({ service_requests: [], project_requests: [], installed_products: [], favorites: [], studio_variants: [], cart: [], offers: [], campaigns: [], support: null })
   const [portalLoading, setPortalLoading] = useState(true)
   const depthRef = useRef(0)
 
@@ -521,20 +527,37 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
 
   async function refreshPortal() {
     try {
-      const [data, planning] = await Promise.all([
+      const sessionHash = await sha256Hex(sessionToken)
+      const [data, planning, commerce] = await Promise.all([
         gateway({ action: 'customer_portal', session_token: sessionToken }),
-        rpcPost(PLANNING_RPC, { p_session_hash: await sha256Hex(sessionToken) }).catch(() => null),
+        rpcPost(PLANNING_RPC, { p_session_hash: sessionHash }).catch(() => null),
+        rpcPost(CUSTOMER_COMMERCE_RPC, { p_session_hash: sessionHash }).catch(() => null),
       ])
       const servicePlanning = new Map<string, any>((planning?.service_requests || []).map((x: any) => [x.ticket_no, x]))
       const projectPlanning = new Map<string, any>((planning?.project_requests || []).map((x: any) => [x.request_no, x]))
       setPortal({
         service_requests: (data.service_requests || []).map((x: ServiceRequestItem) => ({ ...x, ...(servicePlanning.get(x.ticket_no) || {}) })),
         project_requests: (data.project_requests || []).map((x: ProjectRequestItem) => ({ ...x, ...(projectPlanning.get(x.request_no) || {}) })),
-        installed_products: data.installed_products || [], favorites: data.favorites || [], studio_variants: data.studio_variants || [], support: data.support || null,
+        installed_products: data.installed_products || [], favorites: data.favorites || [], studio_variants: data.studio_variants || [],
+        cart: commerce?.cart || [], offers: commerce?.offers || [], campaigns: commerce?.campaigns || [], support: data.support || null,
       })
     } finally { setPortalLoading(false) }
   }
   useEffect(() => { refreshPortal().catch(() => setPortalLoading(false)) }, [sessionToken])
+
+  useEffect(() => {
+    if (!sessionToken || !residence.id) return
+    let cancelled = false
+    const send = async () => {
+      try {
+        const room = route.tab === 'discover' ? STUDIO_ROOMS.find(r => r.id === route.roomId)?.title || route.roomId : null
+        const material = route.tab === 'discover' ? STUDIO_MATERIALS.find(m => m.id === route.materialId)?.name || route.materialId : null
+        await rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: await sha256Hex(sessionToken), p_event_type: route.tab === 'discover' ? 'design_view' : 'page_view', p_tab: route.tab, p_room: room, p_design_name: route.tab === 'discover' ? route.model : null, p_material_name: material, p_entity_id: residence.id, p_metadata: { path: location.pathname + location.search } })
+      } catch {}
+    }
+    const timer = window.setTimeout(() => { if (!cancelled) void send() }, 350)
+    return () => { cancelled = true; window.clearTimeout(timer) }
+  }, [sessionToken, residence.id, route.tab, route.roomId, route.model, route.materialId])
 
   const productCount = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length
   const showBack = route.tab === 'service'
@@ -550,13 +573,14 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
       .dashboardWelcome{position:relative}.residenceSwitcher{z-index:60}.residenceSwitcherMenu{z-index:61!important}
       @media(max-width:760px){.nav{width:100%!important}.dashboardScreen{padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}}
       @media(prefers-reduced-motion:reduce){.nav button,.nav button svg{transition:none!important}}
+      .commerceBanner{border:1px solid rgba(169,120,50,.18);background:linear-gradient(145deg,#fffaf1,#f5ead9);border-radius:18px;padding:16px;display:grid;gap:7px}.commerceBanner strong{font-size:17px}.commerceBanner .promoCode{display:inline-flex;width:max-content;border:1px dashed #a97832;border-radius:9px;padding:5px 8px;font-size:11px;font-weight:900;color:#7c551f}.commerceBanner a{color:#7c551f;font-weight:850;text-decoration:none}.cartSummary{display:flex;align-items:center;justify-content:space-between;gap:12px}.cartSummary b{font-size:20px}.cartAction{border:0;border-radius:12px;padding:10px 14px;font-weight:850;background:#26231f;color:#fff}.cartAction.active{background:#efe0ca;color:#785121}.offerStack{display:grid;gap:10px}
     `}</style>
     <div className="screen stack dashboardScreen">
       {showBack && <button type="button" className="portalBack" onClick={goBack} aria-label="Önceki ekrana dön">← Geri</button>}
       <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
       {route.tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} />}
       {route.tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onService={() => navigate('service')} />}
-      {route.tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} studioVariants={portal.studio_variants} selection={route} onSelectionChange={updateDiscover} onRefresh={refreshPortal} />}
+      {route.tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} cart={portal.cart} studioVariants={portal.studio_variants} selection={route} onSelectionChange={updateDiscover} onRefresh={refreshPortal} />}
       {route.tab === 'requests' && <RequestsTab residence={residence} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {route.tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
       {route.tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={productCount} onProducts={() => navigate('products')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
@@ -584,6 +608,9 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRe
   ].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)).slice(0, 2)
   return <>
     <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
+    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0,2).map(o => <div className="commerceBanner" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <div><b>{o.discount_type === 'percent' ? `%${o.discount_value}` : `${moneyTR(Number(o.discount_value))}`} indirim</b></div> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}</div>)}</div>}
+    {portal.campaigns.length > 0 && portal.campaigns.slice(0,1).map(c => <div className="commerceBanner" key={c.id}><div className="eyebrow gold">ERİPEK GOLD KAMPANYA</div><strong>{c.title}</strong>{c.subtitle && <div className="small">{c.subtitle}</div>}{c.body && <div className="small muted">{c.body}</div>}{c.cta_url && <a href={c.cta_url} target={c.cta_url.startsWith('http') ? '_blank' : undefined} rel="noreferrer">{c.cta_label || 'İncele'} →</a>}</div>)}
+    {portal.cart.length > 0 && <div className="card cartSummary"><div><div className="eyebrow gold">İLGİ LİSTEM</div><strong>{portal.cart.length} seçim kayıtlı</strong><div className="small muted">Sepete aldığınız tasarımlar özel teklif için hazır.</div></div><b>{portal.cart.length}</b></div>}
     <div className="grid2"><div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date ? <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div> : <div className="small warrantyPending">Montaj tarihi sisteme işlendiğinde garanti takviminiz burada görünecek.</div>}</div><button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button></div>
     <button className="card productsSummaryCard" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div className="productsSummaryBody"><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{portalLoading ? 'Ürün kayıtları yükleniyor…' : products.length ? `${products.length} ürün kayıtlı` : 'Ürün kayıtlarınızı görüntüleyin'}</strong><div className="small muted">{residence.delivery_date ? `Garanti ${warrantyEnd} tarihine kadar` : 'Ürün, ölçü ve garanti detayları'}</div></div><div className="productsSummaryArrow">›</div></button>
     <button className="card latestRequestsCard" onClick={onRequests}><div className="sectionRow"><div><div className="eyebrow gold">TALEPLERİM</div><strong>Son işlemleriniz</strong></div><b>›</b></div>{portalLoading ? <div className="small muted">Talepler yükleniyor…</div> : recent.length ? <div className="latestRequestList">{recent.map(x => <div key={x.no}><span>{x.kind}</span><strong>{x.status}</strong><small>{x.no}</small></div>)}</div> : <div className="small muted">Henüz servis veya proje talebiniz bulunmuyor.</div>}</button>
@@ -831,17 +858,18 @@ function PremiumImageViewer({ open, previewSrc, src, alt, title, subtitle, onClo
   </div>
 }
 
-function DiscoverTab({ residence, sessionToken, favorites, studioVariants, selection, onSelectionChange, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; studioVariants: StudioVariant[]; selection: DiscoverSelection; onSelectionChange: (next: DiscoverSelection, mode?: HistoryMode) => void; onRefresh: () => Promise<void> }) {
+function DiscoverTab({ residence, sessionToken, favorites, cart, studioVariants, selection, onSelectionChange, onRefresh }: { residence: Residence; sessionToken: string; favorites: FavoriteItem[]; cart: CartItem[]; studioVariants: StudioVariant[]; selection: DiscoverSelection; onSelectionChange: (next: DiscoverSelection, mode?: HistoryMode) => void; onRefresh: () => Promise<void> }) {
   const { roomId, model, materialId } = selection
   const [requestType, setRequestType] = useState(PROJECT_REQUEST_TYPES[0])
   const [notes, setNotes] = useState(''), [requestNo, setRequestNo] = useState(''), [requestMsg, setRequestMsg] = useState('')
-  const [favoriteBusy, setFavoriteBusy] = useState(false), [busy, setBusy] = useState(false)
+  const [favoriteBusy, setFavoriteBusy] = useState(false), [cartBusy, setCartBusy] = useState(false), [busy, setBusy] = useState(false)
   const [viewer, setViewer] = useState<'preview' | 'slab' | null>(null)
 
   const room = STUDIO_ROOMS.find(r => r.id === roomId) || STUDIO_ROOMS[0]
   const material = STUDIO_MATERIALS.find(m => m.id === materialId) || STUDIO_MATERIALS[0]
   const requestUi = PROJECT_REQUEST_UI[requestType]
   const saved = favorites.some(f => f.residence_id === residence.id && f.room === room.title && f.design_name === model && f.material_name === material.name)
+  const inCart = cart.some(c => c.residence_id === residence.id && c.room === room.title && c.design_name === model && c.material_name === material.name && c.status !== 'removed')
   const realPreview = studioVariants.find(v => v.room === room.title && (v.design_name === model || v.model_code === model) && v.material_name === material.name)
   const curatedPreview = CURATED_PREVIEWS.find(v => v.roomId === roomId && v.model === model && v.materialId === materialId)
   const previewImage = curatedPreview?.image || realPreview?.preview_image_url || null
@@ -860,9 +888,23 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, selec
   }
   async function toggleFavorite() {
     setFavoriteBusy(true); setRequestMsg('')
-    try { await gateway({ action: 'favorite_toggle', session_token: sessionToken, residence_id: residence.id, room: room.title, design_name: model, material_name: material.name }); await onRefresh() }
-    catch { setRequestMsg('Seçiminiz kaydedilemedi. Lütfen tekrar deneyin.') }
+    try {
+      await gateway({ action: 'favorite_toggle', session_token: sessionToken, residence_id: residence.id, room: room.title, design_name: model, material_name: material.name })
+      rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: await sha256Hex(sessionToken), p_event_type: saved ? 'favorite_remove' : 'favorite', p_tab: 'discover', p_room: room.title, p_design_name: model, p_material_name: material.name, p_entity_id: residence.id, p_metadata: {} }).catch(() => null)
+      await onRefresh()
+    } catch { setRequestMsg('Seçiminiz kaydedilemedi. Lütfen tekrar deneyin.') }
     finally { setFavoriteBusy(false) }
+  }
+  async function toggleCart() {
+    if (!residence.id) return
+    setCartBusy(true); setRequestMsg('')
+    try {
+      const hash = await sha256Hex(sessionToken)
+      await rpcPost(CUSTOMER_CART_RPC, { p_session_hash: hash, p_residence_id: residence.id, p_room: room.title, p_design_name: model, p_material_name: material.name, p_action: inCart ? 'remove' : 'add' })
+      rpcPost(CUSTOMER_EVENT_RPC, { p_session_hash: hash, p_event_type: inCart ? 'cart_remove' : 'cart_add', p_tab: 'discover', p_room: room.title, p_design_name: model, p_material_name: material.name, p_entity_id: residence.id, p_metadata: {} }).catch(() => null)
+      await onRefresh()
+    } catch { setRequestMsg('İlgi listeniz güncellenemedi. Lütfen tekrar deneyin.') }
+    finally { setCartBusy(false) }
   }
   async function createProjectRequest() {
     setRequestMsg(''); setRequestNo(''); setBusy(true)
@@ -895,7 +937,7 @@ function DiscoverTab({ residence, sessionToken, favorites, studioVariants, selec
     {material.slabImage && <div className="realSlabCard"><button type="button" className="realSlabVisual" onClick={() => setViewer('slab')} aria-label={`${material.name} plaka görselini büyüt`}><img src={material.slabImage} alt={`${material.name} T-ONE plaka görünümü`}/><span className="slabZoomHint">⌕ Büyüt</span></button><div className="realSlabCopy"><div className="eyebrow gold">PLAKA & TEKNİK BİLGİ</div><strong>{material.slabMeta}</strong><div className="materialSpecs">{material.size && <span>{material.size}</span>}{material.thickness && <span>{material.thickness}</span>}{material.surface && <span>{material.surface}</span>}</div>{material.productCode && <div className="productCodeLine">Ürün kodu: {material.productCode}</div>}{material.productUrl && <a href={material.productUrl} target="_blank" rel="noreferrer" className="kaleSourceLine"><span className="kaleWordmark"><svg viewBox="0 0 24 24" aria-hidden="true" className="kaleCastleMark"><path d="M3 4h4v4h3V4h4v4h3V4h4v16H3V4Zm4 10v6h3v-6H7Zm7 0v6h3v-6h-3Z"/></svg><b>Kale</b></span><span>resmî ürün sayfası ↗</span></a>}<div className="small muted">Plaka görselini büyüterek damar ve yüzey karakterini inceleyebilirsiniz. Ekran renkleri fiziksel numuneden küçük farklılık gösterebilir.</div></div></div>}
     <PremiumImageViewer open={viewer === 'slab'} previewSrc={material.slabImage} src={material.slabImage} alt={`${material.name} T-ONE plaka`} title={`${material.name} • Plaka Görünümü`} subtitle={material.slabMeta || material.name} onClose={() => setViewer(null)} />
 
-    <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div>
+    <div className="selectionSummary"><div><div className="small muted">Seçiminiz</div><strong>{room.title} • {model}</strong><div className="small muted">{material.name}</div></div><div style={{display:'flex',gap:7,flexWrap:'wrap',justifyContent:'flex-end'}}><button type="button" disabled={cartBusy} className={inCart ? 'cartAction active' : 'cartAction'} onClick={toggleCart}>{cartBusy ? 'İşleniyor…' : inCart ? '✓ Sepette' : '+ Sepete Ekle'}</button><button type="button" disabled={favoriteBusy} className={saved ? 'miniSave saved' : 'miniSave'} onClick={toggleFavorite}>{favoriteBusy ? 'Kaydediliyor…' : saved ? '✓ Kaydedildi' : '♡ Kaydet'}</button></div></div>
     {favorites.length > 0 && <div className="card savedDesignsCard"><div className="sectionRow"><div><div className="eyebrow gold">KAYDETTİKLERİM</div><strong>Beğendiğiniz tasarımlar</strong></div><span className="countPill">{favorites.length}</span></div><div className="savedDesignList">{favorites.map(f => <button type="button" key={f.id} onClick={() => openFavorite(f)}><span className="savedMiniVisual">MP</span><span><strong>{f.room} • {f.design_name}</strong><small>{f.material_name}</small></span><b>›</b></button>)}</div></div>}
     <div className="card projectLeadCard"><div className="eyebrow gold">PROJENİZİ BAŞLATALIM</div><strong>Bu seçimi evinizde değerlendirelim</strong><div className="small muted">Talebiniz daire bilgilerinizle birlikte Master Porcelenta ekibine iletilir. Tekrar adres veya telefon girmeniz gerekmez.</div><div><label className="label">Talep türü</label><select className="input" value={requestType} onChange={e => setRequestType(e.target.value as typeof requestType)}>{PROJECT_REQUEST_TYPES.map(t => <option key={t}>{t}</option>)}</select></div><div><label className="label">Notunuz <span className="muted">(isteğe bağlı)</span></label><textarea className="input textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Örn: Ada tezgahı için yerinde ölçü ve fiyat istiyorum." /></div>{requestMsg && <div className="errorBox">{requestMsg}</div>}{requestNo && <div className="successBox"><strong>{requestUi.success}</strong><div className="small">Talep numaranız: {requestNo}</div></div>}<button type="button" className="btn primary" disabled={busy || !residence.id} onClick={createProjectRequest}>{busy ? requestUi.busy : requestUi.button}</button></div>
   </>
