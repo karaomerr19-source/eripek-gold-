@@ -28,7 +28,7 @@ type Campaign = { id: string; title: string; subtitle?: string | null; body?: st
 type PortalData = { service_requests: ServiceRequestItem[]; project_requests: ProjectRequestItem[]; installed_products: InstalledProduct[]; favorites: FavoriteItem[]; studio_variants: StudioVariant[]; cart: CartItem[]; offers: CustomerOffer[]; campaigns: Campaign[]; support?: SupportInfo | null }
 type ServicePhoto = { name: string; data_url: string }
 
-type DashboardTab = 'home' | 'products' | 'discover' | 'requests' | 'account' | 'service'
+type DashboardTab = 'home' | 'products' | 'discover' | 'designs' | 'requests' | 'account' | 'service'
 type HistoryMode = 'push' | 'replace'
 
 const GATEWAY = 'https://txknydpygsvwdhxoumcm.supabase.co/functions/v1/qr-gateway'
@@ -127,6 +127,13 @@ const PROJECT_REQUEST_UI: Record<(typeof PROJECT_REQUEST_TYPES)[number], { butto
 const SERVICE_STATUS_LABELS: Record<string, string> = { received: 'Alındı', reviewing: 'İnceleniyor', scheduled: 'Planlandı', in_progress: 'İşlemde', completed: 'Tamamlandı', cancelled: 'İptal' }
 const PROJECT_STATUS_LABELS: Record<string, string> = { new: 'Yeni', contacted: 'İletişime geçildi', survey_planned: 'Keşif planlandı', quoted: 'Teklif verildi', won: 'Onaylandı', lost: 'Sonuçlanmadı', cancelled: 'İptal' }
 const SERVICE_ISSUES = ['Su sızıntısı', 'Çökme / ayrılma', 'Yüzey aşınması', 'Montaj kontrolü', 'Silikon / derz yenileme', 'Çatlak / kırık', 'Bakım desteği', 'Tesisat / bağlantı kontrolü', 'Diğer'] as const
+
+function firstName(value?: string | null) {
+  const clean = String(value || '').trim()
+  if (!clean) return ''
+  const first = clean.split(/\s+/)[0]
+  return first.charAt(0).toLocaleUpperCase('tr-TR') + first.slice(1).toLocaleLowerCase('tr-TR')
+}
 
 function formatDateTR(value?: string | null) {
   if (!value) return 'Kayıt bekleniyor'
@@ -242,7 +249,7 @@ function readPortalRoute(): PortalRoute {
   if (typeof window === 'undefined') return { tab: 'home', ...fallback }
   const params = new URLSearchParams(window.location.search)
   const rawTab = params.get('tab') as DashboardTab | null
-  const tab: DashboardTab = rawTab && ['home', 'products', 'discover', 'requests', 'account', 'service'].includes(rawTab) ? rawTab : 'home'
+  const tab: DashboardTab = rawTab && ['home', 'products', 'discover', 'designs', 'requests', 'account', 'service'].includes(rawTab) ? rawTab : 'home'
   const cached = readCachedDiscover() || fallback
   const roomId = roomIsValid(params.get('room')) ? params.get('room') as StudioRoomId : cached.roomId
   const model = resolveModel(roomId, params.get('model') || cached.model)
@@ -560,7 +567,7 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
   }, [sessionToken, residence.id, route.tab, route.roomId, route.model, route.materialId])
 
   const productCount = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id).length
-  const showBack = route.tab === 'service'
+  const showBack = route.tab === 'service' || route.tab === 'designs'
 
   return <>
     <style jsx global>{`
@@ -570,20 +577,25 @@ function Dashboard({ customer, residence, residences, sessionToken, onResidenceC
       .nav button{position:relative;display:grid!important;place-items:center!important;align-content:center!important;gap:3px!important;min-height:54px!important;border-radius:14px!important;padding:5px 2px!important;font-size:8.5px!important;font-weight:750!important;color:#786e63!important;transition:background .18s ease,color .18s ease,transform .18s ease!important}
       .nav button svg{display:block;transition:transform .18s ease}.nav button.active{background:linear-gradient(180deg,#f5ead9,#efe0ca)!important;color:#785121!important}.nav button.active svg{transform:translateY(-1px)}
       .nav button.active:after{content:"";position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:#a97832}.navLabel{display:block;line-height:1;white-space:nowrap}
-      .dashboardWelcome{position:relative}.residenceSwitcher{z-index:60}.residenceSwitcherMenu{z-index:61!important}
+      .dashboardWelcome{position:relative}.dashboardWelcome .welcome{font-size:clamp(30px,7.6vw,38px);line-height:1.04;letter-spacing:-.035em}.residenceSwitcher{z-index:60}.residenceSwitcherMenu{z-index:61!important}
       @media(max-width:760px){.nav{width:100%!important}.dashboardScreen{padding-bottom:calc(112px + env(safe-area-inset-bottom))!important}}
       @media(prefers-reduced-motion:reduce){.nav button,.nav button svg{transition:none!important}}
       .commerceBanner{border:1px solid rgba(169,120,50,.18);background:linear-gradient(145deg,#fffaf1,#f5ead9);border-radius:18px;padding:16px;display:grid;gap:7px}.commerceBanner strong{font-size:17px}.commerceBanner .promoCode{display:inline-flex;width:max-content;border:1px dashed #a97832;border-radius:9px;padding:5px 8px;font-size:11px;font-weight:900;color:#7c551f}.commerceBanner a{color:#7c551f;font-weight:850;text-decoration:none}.cartSummary{display:flex;align-items:center;justify-content:space-between;gap:12px}.cartSummary b{font-size:20px}.cartAction{border:0;border-radius:12px;padding:10px 14px;font-weight:850;background:#26231f;color:#fff}.cartAction.active{background:#efe0ca;color:#785121}.offerStack{display:grid;gap:10px}
+      .savedSummary{cursor:pointer;text-align:left;width:100%;border:1px solid #ded5c8;background:linear-gradient(145deg,#fffdf9,#f8f3eb);border-radius:18px;padding:17px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px;color:inherit}
+      .savedSummary:hover{border-color:#cdb48f}.savedSummaryMain{display:grid;gap:4px}.savedSummaryMain strong{font-size:18px}.savedSummaryCounts{display:flex;gap:7px;flex-wrap:wrap}.savedSummaryCounts span{font-size:10px;font-weight:850;color:#785121;background:#f1e3cf;border-radius:999px;padding:5px 8px}.savedSummaryArrow{font-size:28px;color:#9a6c2c}
+      .savedHero{display:grid;gap:8px;padding:5px 0 4px}.savedHero h2{margin:0}.savedTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px}.savedTabs button{border:1px solid #dfd7cc;background:#faf7f1;color:#6d6257;border-radius:13px;padding:11px;font-weight:850}.savedTabs button.active{background:#2d2924;color:#fff;border-color:#2d2924}.savedList{display:grid;gap:11px}.savedDesignCard{border:1px solid #e4ddd4;background:#fffdf9;border-radius:18px;padding:15px;display:grid;gap:12px}.savedDesignHead{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.savedDesignHead>div{display:grid;gap:3px}.savedDesignHead strong{font-size:17px}.savedDesignHead small{color:#8a7f73}.savedBadge{font-size:9px;font-weight:900;letter-spacing:.06em;border-radius:999px;padding:6px 8px;background:#f0e2ce;color:#805923;white-space:nowrap}.savedDesignActions{display:grid;grid-template-columns:1fr auto;gap:8px}.savedDesignActions button{border:0;border-radius:11px;padding:11px 12px;font-weight:850}.savedOpen{background:#2c2823;color:#fff}.savedRemove{background:#f4eee6;color:#7c5a32}.savedEmpty{border:1px dashed #d9d0c4;border-radius:18px;padding:26px 18px;text-align:center;display:grid;gap:7px;background:#fbf8f3}.savedEmpty button{margin-top:4px;border:0;border-radius:11px;padding:11px;background:#2d2924;color:#fff;font-weight:850}.savedOffer{border:1px solid #e2d4bf;background:linear-gradient(145deg,#fffaf1,#f4e6d1);border-radius:17px;padding:15px;display:grid;gap:6px}.savedOffer strong{font-size:16px}
+      @media(max-width:520px){.savedDesignActions{grid-template-columns:1fr}.savedDesignActions button{width:100%}}
     `}</style>
     <div className="screen stack dashboardScreen">
       {showBack && <button type="button" className="portalBack" onClick={goBack} aria-label="Önceki ekrana dön">← Geri</button>}
-      <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba, {customer.full_name}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
-      {route.tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} />}
+      <div className="dashboardWelcome"><div><div className="eyebrow gold">HOŞ GELDİNİZ</div><h2 className="welcome">Merhaba {firstName(customer.full_name)}</h2><div className="small muted">{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</div></div>{residences.length > 1 && <ResidenceSwitcher residences={residences} residence={residence} onChange={onResidenceChange} />}</div>
+      {route.tab === 'home' && <HomeTab residence={residence} portal={portal} portalLoading={portalLoading} onService={() => navigate('service')} onDiscover={() => navigate('discover')} onDesigns={() => navigate('designs')} onRequests={() => navigate('requests')} onProducts={() => navigate('products')} />}
       {route.tab === 'products' && <ProductsTab residence={residence} products={portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)} loading={portalLoading} onService={() => navigate('service')} />}
       {route.tab === 'discover' && <DiscoverTab residence={residence} sessionToken={sessionToken} favorites={portal.favorites} cart={portal.cart} studioVariants={portal.studio_variants} selection={route} onSelectionChange={updateDiscover} onRefresh={refreshPortal} />}
+      {route.tab === 'designs' && <DesignsTab residence={residence} sessionToken={sessionToken} portal={portal} loading={portalLoading} onRefresh={refreshPortal} onDiscover={() => navigate('discover')} onOpenDesign={(room, design, material) => { const roomMatch = STUDIO_ROOMS.find(r => r.title === room)?.id || 'kitchen'; const materialMatch = STUDIO_MATERIALS.find(m => m.name === material)?.id || 'taj'; commitRoute({ tab: 'discover', roomId: roomMatch, model: resolveModel(roomMatch, design || null), materialId: materialMatch }, 'push', true) }} />}
       {route.tab === 'requests' && <RequestsTab residence={residence} portal={portal} loading={portalLoading} onRefresh={refreshPortal} />}
       {route.tab === 'service' && <ServiceTab residence={residence} sessionToken={sessionToken} installedProducts={portal.installed_products} onCreated={refreshPortal} />}
-      {route.tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={productCount} onProducts={() => navigate('products')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
+      {route.tab === 'account' && <AccountTab customer={customer} residence={residence} residences={residences} sessionToken={sessionToken} support={portal.support || null} productCount={productCount} savedCount={portal.cart.length + portal.favorites.length} onProducts={() => navigate('products')} onDesigns={() => navigate('designs')} onResidenceChange={onResidenceChange} onResidenceAdded={onResidenceAdded} onReset={onReset} />}
     </div>
     <div className="nav" aria-label="Ana gezinme">
       <button type="button" aria-label="Ana Sayfa" className={route.tab === 'home' ? 'active' : ''} onClick={() => navigate('home')}><NavIcon name="home"/><span className="navLabel">Ana Sayfa</span></button>
@@ -599,7 +611,7 @@ function ResidenceSwitcher({ residences, residence, onChange }: { residences: Re
   return <details className="residenceSwitcher"><summary><span className="small muted">Aktif daire</span><strong>{residence.block}-{residence.unit_no}</strong><b>⌄</b></summary><div className="residenceSwitcherMenu">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={e => { onChange(r); const d = e.currentTarget.closest('details') as HTMLDetailsElement | null; if (d) d.open = false }}><span><strong>{r.block} Blok • Daire {r.unit_no}</strong><small>{r.floor}. Kat</small></span>{r.id === residence.id && <em>✓</em>}</button>)}</div></details>
 }
 
-function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRequests, onProducts }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onRequests: () => void; onProducts: () => void }) {
+function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onDesigns, onRequests, onProducts }: { residence: Residence; portal: PortalData; portalLoading: boolean; onService: () => void; onDiscover: () => void; onDesigns: () => void; onRequests: () => void; onProducts: () => void }) {
   const months = residence.default_warranty_months || 12, warrantyEnd = warrantyEndDate(residence.delivery_date, months)
   const products = portal.installed_products.filter(p => !p.residence_id || p.residence_id === residence.id)
   const recent = [
@@ -610,13 +622,82 @@ function HomeTab({ residence, portal, portalLoading, onService, onDiscover, onRe
     <div className="dashHero"><div><div className="eyebrow">SİZE ÖZEL SEÇKİ</div><h2 className="heroSubTitle">Evinizi tamamlayın</h2><div className="small">Modeli seçin, taşı değiştirin, uygulama seçeneklerini keşfedin.</div></div></div>
     {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0,2).map(o => <div className="commerceBanner" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <div><b>{o.discount_type === 'percent' ? `%${o.discount_value}` : `${moneyTR(Number(o.discount_value))}`} indirim</b></div> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}</div>)}</div>}
     {portal.campaigns.length > 0 && portal.campaigns.slice(0,1).map(c => <div className="commerceBanner" key={c.id}><div className="eyebrow gold">ERİPEK GOLD KAMPANYA</div><strong>{c.title}</strong>{c.subtitle && <div className="small">{c.subtitle}</div>}{c.body && <div className="small muted">{c.body}</div>}{c.cta_url && <a href={c.cta_url} target={c.cta_url.startsWith('http') ? '_blank' : undefined} rel="noreferrer">{c.cta_label || 'İncele'} →</a>}</div>)}
-    {portal.cart.length > 0 && <div className="card cartSummary"><div><div className="eyebrow gold">İLGİ LİSTEM</div><strong>{portal.cart.length} seçim kayıtlı</strong><div className="small muted">Sepete aldığınız tasarımlar özel teklif için hazır.</div></div><b>{portal.cart.length}</b></div>}
+    {(portal.cart.length > 0 || portal.favorites.length > 0) && <button type="button" className="savedSummary" onClick={onDesigns}><div className="savedSummaryMain"><div className="eyebrow gold">TASARIMLARIM</div><strong>Kaydettiklerinizi görüntüleyin</strong><div className="savedSummaryCounts">{portal.cart.length > 0 && <span>Sepet {portal.cart.length}</span>}{portal.favorites.length > 0 && <span>Favori {portal.favorites.length}</span>}</div><div className="small muted">İlgilendiğiniz tasarımlar ve size özel teklifler tek yerde.</div></div><div className="savedSummaryArrow">›</div></button>}
     <div className="grid2"><div className="card warrantyCard"><div className="iconMark">✓</div><strong>{months} Ay Uygulama Garantisi</strong><div className="small muted">Teslim ve montaj tarihinden itibaren</div>{residence.delivery_date ? <div className="warrantyDates"><span>{formatDateTR(residence.delivery_date)}</span><b>→</b><span>{warrantyEnd}</span></div> : <div className="small warrantyPending">Montaj tarihi sisteme işlendiğinde garanti takviminiz burada görünecek.</div>}</div><button className="card actionCard" onClick={onService}><div className="iconMark">↗</div><strong>Servis Merkezi</strong><div className="small muted">Talebinizi kayıt altına alın</div></button></div>
     <button className="card productsSummaryCard" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div className="productsSummaryBody"><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{portalLoading ? 'Ürün kayıtları yükleniyor…' : products.length ? `${products.length} ürün kayıtlı` : 'Ürün kayıtlarınızı görüntüleyin'}</strong><div className="small muted">{residence.delivery_date ? `Garanti ${warrantyEnd} tarihine kadar` : 'Ürün, ölçü ve garanti detayları'}</div></div><div className="productsSummaryArrow">›</div></button>
     <button className="card latestRequestsCard" onClick={onRequests}><div className="sectionRow"><div><div className="eyebrow gold">TALEPLERİM</div><strong>Son işlemleriniz</strong></div><b>›</b></div>{portalLoading ? <div className="small muted">Talepler yükleniyor…</div> : recent.length ? <div className="latestRequestList">{recent.map(x => <div key={x.no}><span>{x.kind}</span><strong>{x.status}</strong><small>{x.no}</small></div>)}</div> : <div className="small muted">Henüz servis veya proje talebiniz bulunmuyor.</div>}</button>
     <div className="card warrantyInfo"><div className="eyebrow gold">GARANTİ KAPSAMI</div><div className="coveragePills"><span>Su sızıntısı</span><span>Çökme</span><span>Aşınma</span></div><div className="small muted">Normal kullanım koşullarında uygulamadan kaynaklanan sızdırma, çökme / ayrılma ve olağandışı aşınmalar garanti kapsamında değerlendirilir.</div><div className="warrantyDivider"/><div className="small"><strong>Garanti dışı:</strong> Darbe kaynaklı kırılmalar; tesisat, tadilat veya üçüncü kişilerce yapılan işlemlerden doğan hasarlar; sonradan delme / kesme / müdahale ve uygunsuz kimyasal ya da aşındırıcı ürün kullanımı.</div><div className="siteDamageNote small"><strong>Şantiye teslim notu:</strong> Daire teslimi öncesinde şantiye faaliyetleri veya üçüncü kişiler nedeniyle oluşan kırılma ve çizilmeler müşteri kullanım hatası sayılmaz.</div></div>
     <div className="card careCard"><div className="careIcon">◌</div><div><strong>Kolay bakım</strong><div className="small muted spaceTop">Porselen yüzeylerin günlük temizliğinde yumuşak, nemli bir bez yeterlidir. Güçlü kimyasallar ve aşındırıcı temizlik ürünleri kullanmanıza gerek yoktur.</div></div></div>
     <div><div className="sectionTitle">Eviniz için fikirler</div><div className="grid2 roomGrid"><Room title="Mutfak" sub="Ada • Tezgah • Kahve Köşesi" onClick={onDiscover}/><Room title="Yatak Odası" sub="Başlık • Panel • LED" onClick={onDiscover}/></div></div>
+  </>
+}
+
+
+function DesignsTab({ residence, sessionToken, portal, loading, onRefresh, onDiscover, onOpenDesign }: { residence: Residence; sessionToken: string; portal: PortalData; loading: boolean; onRefresh: () => Promise<void>; onDiscover: () => void; onOpenDesign: (room?: string | null, design?: string | null, material?: string | null) => void }) {
+  const [view, setView] = useState<'cart' | 'favorites'>('cart')
+  const [busyId, setBusyId] = useState('')
+  const residenceCart = portal.cart.filter(x => !x.residence_id || x.residence_id === residence.id)
+  const residenceFavorites = portal.favorites.filter(x => !x.residence_id || x.residence_id === residence.id)
+  const items = view === 'cart' ? residenceCart : residenceFavorites
+
+  async function removeFromCart(item: CartItem) {
+    if (!residence.id) return
+    setBusyId(item.id)
+    try {
+      const result = await rpcPost(CUSTOMER_CART_RPC, {
+        p_session_hash: await sha256Hex(sessionToken),
+        p_residence_id: residence.id,
+        p_room: item.room || '',
+        p_design_name: item.design_name || '',
+        p_material_name: item.material_name || '',
+        p_action: 'remove',
+      })
+      if (result?.result !== 'ok') throw new Error('remove_failed')
+      await onRefresh()
+    } finally { setBusyId('') }
+  }
+
+  async function removeFavorite(item: FavoriteItem) {
+    setBusyId(item.id)
+    try {
+      await gateway({
+        action: 'favorite_toggle',
+        session_token: sessionToken,
+        residence_id: residence.id,
+        room: item.room || '',
+        design_name: item.design_name || '',
+        material_name: item.material_name || '',
+      })
+      await onRefresh()
+    } finally { setBusyId('') }
+  }
+
+  return <>
+    <div className="savedHero">
+      <div className="eyebrow gold">TASARIMLARIM</div>
+      <h2 className="welcome">İlgi listeniz</h2>
+      <div className="small muted">Beğendiğiniz ve teklif almak için sepete eklediğiniz tasarımları burada yönetebilirsiniz.</div>
+    </div>
+
+    {portal.offers.length > 0 && <div className="offerStack">{portal.offers.slice(0, 3).map(o => <div className="savedOffer" key={o.id}><div className="eyebrow gold">SİZE ÖZEL TEKLİF</div><strong>{o.title}</strong>{o.message && <div className="small muted">{o.message}</div>}{o.discount_value ? <b>{o.discount_type === 'percent' ? `%${o.discount_value}` : moneyTR(Number(o.discount_value))} indirim</b> : null}{o.promo_code && <span className="promoCode">{o.promo_code}</span>}{o.ends_at && <div className="small muted">Son kullanım: {dateTimeTR(o.ends_at)}</div>}</div>)}</div>}
+
+    <div className="savedTabs" role="tablist" aria-label="Kaydedilen tasarımlar">
+      <button type="button" className={view === 'cart' ? 'active' : ''} onClick={() => setView('cart')}>Sepetim ({residenceCart.length})</button>
+      <button type="button" className={view === 'favorites' ? 'active' : ''} onClick={() => setView('favorites')}>Favorilerim ({residenceFavorites.length})</button>
+    </div>
+
+    {loading ? <div className="card"><div className="small muted">Tasarımlarınız yükleniyor…</div></div> : items.length ? <div className="savedList">
+      {items.map(item => <div className="savedDesignCard" key={item.id}>
+        <div className="savedDesignHead">
+          <div><div className="small muted">{item.room || 'Tasarım'}</div><strong>{item.design_name || 'Porselen Tasarımı'}</strong><small>{item.material_name || 'Malzeme seçimi'}</small></div>
+          <span className="savedBadge">{view === 'cart' ? 'TEKLİF LİSTESİ' : 'FAVORİ'}</span>
+        </div>
+        <div className="savedDesignActions">
+          <button type="button" className="savedOpen" onClick={() => onOpenDesign(item.room, item.design_name, item.material_name)}>Tasarıma Git</button>
+          <button type="button" className="savedRemove" disabled={busyId === item.id} onClick={() => void (view === 'cart' ? removeFromCart(item as CartItem) : removeFavorite(item as FavoriteItem))}>{busyId === item.id ? 'Kaldırılıyor…' : 'Listeden Kaldır'}</button>
+        </div>
+      </div>)}
+    </div> : <div className="savedEmpty"><strong>{view === 'cart' ? 'Sepetiniz henüz boş' : 'Henüz favoriniz yok'}</strong><div className="small muted">{view === 'cart' ? 'Teklif almak istediğiniz tasarımları Keşfet ekranından sepete ekleyebilirsiniz.' : 'Beğendiğiniz tasarımları kalp simgesiyle kaydedebilirsiniz.'}</div><button type="button" onClick={onDiscover}>Tasarımları Keşfet</button></div>}
   </>
 }
 
@@ -1001,7 +1082,7 @@ function ServiceTab({ residence, sessionToken, installedProducts, onCreated }: {
   </form>
 }
 
-function AccountTab({ customer, residence, residences, sessionToken, support, productCount, onProducts, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; support: SupportInfo | null; productCount: number; onProducts: () => void; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
+function AccountTab({ customer, residence, residences, sessionToken, support, productCount, savedCount, onProducts, onDesigns, onResidenceChange, onResidenceAdded, onReset }: { customer: Customer; residence: Residence; residences: Residence[]; sessionToken: string; support: SupportInfo | null; productCount: number; savedCount: number; onProducts: () => void; onDesigns: () => void; onResidenceChange: (residence: Residence) => void; onResidenceAdded: (data: any) => Promise<void>; onReset: () => void }) {
   const [email, setEmail] = useState(customer.email || ''), [pin, setPin] = useState(''), [pinAgain, setPinAgain] = useState('')
   const [msg, setMsg] = useState(''), [ok, setOk] = useState(false), [busy, setBusy] = useState(false)
   const [addBlock, setAddBlock] = useState(''), [addFloor, setAddFloor] = useState(''), [addUnit, setAddUnit] = useState('')
@@ -1039,6 +1120,7 @@ function AccountTab({ customer, residence, residences, sessionToken, support, pr
   return <>
     <div><div className="eyebrow gold">KİŞİSEL HESABIM</div><h2 className="welcome">Daire bilgilerim</h2></div>
     <div className="card accountCard"><div><div className="small muted">Müşteri</div><strong>{customer.full_name}</strong></div><div><div className="small muted">Telefon</div><strong>{customer.phone}</strong></div>{customer.email && <div><div className="small muted">E-posta</div><strong>{customer.email}</strong></div>}<div><div className="small muted">Konut</div><strong>{residence.block} Blok • {residence.floor}. Kat • Daire {residence.unit_no}</strong></div><div><div className="small muted">Proje</div><strong>Eripek Gold</strong></div><div><div className="small muted">Uygulama garantisi</div><strong>{residence.default_warranty_months || 12} Ay</strong><div className="small muted">Başlangıç: {formatDateTR(residence.delivery_date)}</div></div></div>
+    <button type="button" className="card productsSummaryCard" onClick={onDesigns}><div className="productsSummaryIcon">♡</div><div className="productsSummaryBody"><div className="eyebrow gold">TASARIMLARIM</div><strong>{savedCount ? `${savedCount} kayıtlı seçim` : 'Kaydettiğiniz tasarımlar'}</strong><div className="small muted">Sepet, favoriler ve size özel teklifler</div></div><div className="productsSummaryArrow">›</div></button>
     <div className="card residencesCard"><div className="residencesCardHead"><div><div className="eyebrow gold">DAİRELERİM</div><strong>{residences.length} kayıtlı konut</strong><div className="small muted">Daire değiştirdiğinizde ürün, garanti, servis ve talepler o konuta göre gösterilir.</div></div></div><div className="residenceList">{residences.map(r => <button type="button" key={r.id || `${r.block}-${r.floor}-${r.unit_no}`} className={r.id === residence.id ? 'active' : ''} onClick={() => onResidenceChange(r)}><span><b>{r.block} Blok • Daire {r.unit_no}</b><small>{r.floor}. Kat</small></span><em>{r.id === residence.id ? 'Aktif' : 'Seç'}</em></button>)}</div><details className="addResidenceDetails"><summary>+ Başka dairem var</summary><form className="addResidenceForm" onSubmit={addResidence}><div className="grid3"><select className="input" value={addBlock} onChange={e => setAddBlock(e.target.value)}><option value="">Blok</option>{['A','B','C','D'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addFloor} onChange={e => { setAddFloor(e.target.value); setAddUnit('') }}><option value="">Kat</option>{['1','2','3','4','5','6','7'].map(x => <option key={x}>{x}</option>)}</select><select className="input" value={addUnit} onChange={e => setAddUnit(e.target.value)} disabled={!addFloor}><option value="">Daire</option>{floorUnits.map(x => <option key={x}>{x}</option>)}</select></div><div className="small muted">Bu işlem seçtiğiniz konutu mevcut Master Porcelenta hesabınıza bağlar. Daire başka bir hesaba tanımlıysa işlem yapılmaz.</div>{addMsg && <div className="errorBox">{addMsg}</div>}{addOk && <div className="successBox">Daire hesabınıza eklendi ve aktif konut olarak seçildi.</div>}<button className="btn dark" disabled={addBusy}>{addBusy ? 'Ekleniyor…' : 'Daireyi Hesabıma Ekle'}</button></form></details></div>
     <button type="button" className="card accountProductsLink" onClick={onProducts}><div className="productsSummaryIcon">MP</div><div><div className="eyebrow gold">ÜRÜNLERİM & GARANTİ</div><strong>{productCount} kayıtlı uygulama</strong><div className="small muted">Ölçü, montaj ve garanti detaylarını görüntüleyin</div></div><b>›</b></button>
     <form className="card accountLoginSetup" onSubmit={saveLogin}><div><div className="eyebrow gold">FARKLI CİHAZDAN GİRİŞ</div><strong>Giriş bilgilerinizi yönetin</strong><div className="small muted spaceTop">Telefon numaranız her zaman kullanılabilir. İsterseniz e-posta ekleyin ve 6 haneli giriş kodunuzu belirleyin veya değiştirin.</div></div><div><label className="label">E-posta <span className="optionalText">(isteğe bağlı)</span></label><input className="input" value={email} onChange={e => setEmail(e.target.value)} inputMode="email" autoComplete="email" placeholder="ad@eposta.com" /></div><div className="pinGrid"><div><label className="label">Yeni 6 Haneli Kod</label><input className="input pinInput" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div><div><label className="label">Kodu Tekrar</label><input className="input pinInput" value={pinAgain} onChange={e => setPinAgain(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="6 rakam" /></div></div>{msg && <div className="errorBox">{msg}</div>}{ok && <div className="successBox">Giriş bilgileriniz güncellendi. Artık farklı cihazlardan da hesabınıza girebilirsiniz.</div>}<button className="btn dark" type="submit" disabled={busy}>{busy ? 'Kaydediliyor…' : 'Giriş Bilgilerimi Kaydet'}</button></form>
