@@ -187,7 +187,7 @@ type ReferenceProject = {
 
 function referenceThumbPath(src: string) {
   const file = src.split('/').pop() || ''
-  return `/references/${file.replace(/\.(jpe?g|png)$/i, '-thumb.webp')}`
+  return `/${file.replace(/\.(jpe?g|png)$/i, '-thumb.webp')}`
 }
 
 const REFERENCE_PROJECTS: readonly ReferenceProject[] = [
